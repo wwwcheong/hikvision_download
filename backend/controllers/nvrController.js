@@ -111,7 +111,9 @@ exports.search = async (req, res) => {
         for (const ch of channels) {
             const trackID = ch.id;
             // Ensure trackID is proper for search. 
-            // ISAPI.md says trackID usually follows rule: Camera_Number * 100 + 1
+            // ISAPI.md states that for NVRs, the trackID typically follows the pattern: Camera_Number * 100 + 1
+            // e.g. Camera 1 -> 101, Camera 2 -> 201.
+            // If we receive a raw ID (like '1'), we convert it to this format.
             let searchTrackID = parseInt(trackID);
             if (searchTrackID < 100) {
                 searchTrackID = searchTrackID * 100 + 1;

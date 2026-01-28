@@ -1,4 +1,4 @@
-const DigestFetch = require('digest-fetch');
+const DigestFetch = require('digest-fetch').default;
 const xml2js = require('xml2js');
 const crypto = require('crypto');
 

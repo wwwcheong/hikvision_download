@@ -167,5 +167,6 @@ A web application with a React frontend and Express.js backend. The frontend pro
 - **Implemented Missing Tests:** Added `backend/tests/nvr.test.js` covering `POST /connect` and `POST /search` with mocks. Added `frontend/src/components/ConnectionForm.test.jsx`.
 - **Configured Test Infrastructure:** Added `jest`, `babel-jest`, `supertest` to backend; `vitest`, `@testing-library/react` to frontend. Fixed ESM/CJS interop issues with `digest-fetch` using Babel.
 - **Code Cleanup:** Removed unused `axios` dependency from backend.
+- **Bug Fix:** Fixed `TypeError: DigestFetch is not a constructor` in `isapiService.js` by correctly accessing the default export of the ESM package in CommonJS.
 - **Documentation:** Added clarification comment for trackID magic number logic in `nvrController.js`.
 

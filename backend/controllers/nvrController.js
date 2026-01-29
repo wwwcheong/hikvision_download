@@ -1,5 +1,6 @@
 const isapiService = require('../services/isapiService');
 const crypto = require('crypto');
+const { Readable } = require('stream');
 
 // Helper to fetch channels
 const fetchChannels = async (client, baseUrl) => {
@@ -61,7 +62,6 @@ exports.connect = async (req, res) => {
     const client = isapiService.createClient(username, password);
     
     try {
-        console.log(`Connecting to ${baseUrl}/ISAPI/System/deviceInfo`);
         const infoRes = await client.fetch(`${baseUrl}/ISAPI/System/deviceInfo`);
         
         if (infoRes.status === 401) {
@@ -234,25 +234,16 @@ exports.download = async (req, res) => {
     const client = isapiService.createClient(username, password);
     
     try {
-        // playbackURI needs to be encoded as it contains special chars like &
-        // However, standard encodeURIComponent encodes chars like :, /, ? which are valid in query values
-        // and some NVRs fail to parse them if encoded.
-        // We only MUST encode delimiters that would break the outer URL parsing: & and = (and spaces, % etc)
-        
-        let encodedURI = encodeURIComponent(playbackURI);
-        
-        // Revert safe characters that NVR might expect raw
-        encodedURI = encodedURI
-            .replace(/%3A/g, ':')
-            .replace(/%2F/g, '/')
-            .replace(/%3F/g, '?')
-            .replace(/%3D/g, '=');
+        const downloadXml = isapiService.buildDownloadXml(playbackURI);
 
-        const downloadUrl = `${baseUrl}/ISAPI/ContentMgmt/download?playbackURI=${encodedURI}`;
+        const downloadUrl = `${baseUrl}/ISAPI/ContentMgmt/download`;
         
-        console.log(`Proxying download: ${fileName || 'video.mp4'}`);
         
-        const response = await client.fetch(downloadUrl);
+        const response = await client.fetch(downloadUrl, {
+            method: 'POST',
+            body: downloadXml,
+            headers: { 'Content-Type': 'application/xml' }
+        });
         
         if (!response.ok) {
             throw new Error(`Download failed: ${response.status} ${response.statusText}`);
@@ -266,7 +257,7 @@ exports.download = async (req, res) => {
             res.setHeader('Content-Length', contentLength);
         }
 
-        response.body.pipe(res);
+        Readable.fromWeb(response.body).pipe(res);
         
     } catch (error) {
         console.error('Download Error:', error);

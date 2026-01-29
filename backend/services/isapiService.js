@@ -44,8 +44,22 @@ const buildSearchXml = ({ trackID, startTime, endTime }) => {
     return builder.buildObject(obj);
 };
 
+const buildDownloadXml = (playbackURI) => {
+    const obj = {
+        downloadRequest: {
+            $: {
+                version: "1.0",
+                xmlns: "http://www.isapi.org/ver20/XMLSchema"
+            },
+            playbackURI: playbackURI
+        }
+    };
+    return builder.buildObject(obj);
+};
+
 module.exports = {
     createClient,
     parseXml,
-    buildSearchXml
+    buildSearchXml,
+    buildDownloadXml
 };

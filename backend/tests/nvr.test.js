@@ -9,6 +9,11 @@ describe('NVR Backend API', () => {
     
     beforeEach(() => {
         jest.clearAllMocks();
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
     });
 
     describe('POST /api/connect', () => {
@@ -180,20 +185,27 @@ describe('NVR Backend API', () => {
 
     describe('GET /api/download', () => {
         it('should download successfully with complex URI', async () => {
- const { Readable } = require('stream');
-
-// ... (inside test)
-
             const mockData = 'mock video data';
+            
+            // Create a genuine Web Stream
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(Buffer.from(mockData));
+                    controller.close();
+                }
+            });
+
             const mockClient = {
                 fetch: jest.fn().mockResolvedValue({
                     ok: true,
                     status: 200,
                     headers: { get: () => String(mockData.length) },
-                    body: Readable.from([mockData])
+                    body: stream
                 })
             };
             isapiService.createClient.mockReturnValue(mockClient);
+
+            isapiService.buildDownloadXml.mockReturnValue('<downloadRequest>...</downloadRequest>');
 
             const complexURI = 'rtsp://10.0.0.1:554/path?s=1&e=2';
             
@@ -216,11 +228,20 @@ describe('NVR Backend API', () => {
             expect(res.statusCode).toEqual(200);
             expect(res.headers['content-disposition']).toContain('attachment');
             
-            // Verify the URL constructed passed to fetch
-            const calledUrl = mockClient.fetch.mock.calls[0][0];
-            // Expect: rtsp://.../path?s=1%26e=2 (partial encoding)
-            // : / ? = should be raw. & should be encoded.
-            expect(calledUrl).toContain('playbackURI=rtsp://10.0.0.1:554/path?s=1%26e=2');
+            // Verify the URL and options passed to fetch
+            const [calledUrl, calledOptions] = mockClient.fetch.mock.calls[0];
+            
+            expect(calledUrl).toContain('/ISAPI/ContentMgmt/download');
+            expect(calledUrl).not.toContain('?playbackURI='); // Should not be in URL anymore
+            
+            expect(calledOptions.method).toBe('POST');
+            expect(calledOptions.headers['Content-Type']).toBe('application/xml');
+            
+            // Verify service was called correctly
+            expect(isapiService.buildDownloadXml).toHaveBeenCalledWith(complexURI);
+            
+            const body = calledOptions.body;
+            expect(body).toBe('<downloadRequest>...</downloadRequest>');
         });
     });
 });

@@ -129,14 +129,13 @@ exports.search = async (req, res) => {
             if (searchTrackID < 100) {
                 searchTrackID = searchTrackID * 100 + 1;
             }
-            
+
             const searchXml = isapiService.buildSearchXml({
                 trackID: searchTrackID, 
-                startTime, 
-                endTime
+                startTime: start.toISOString(), // Ensure strict ISO format (Z)
+                endTime: end.toISOString(),
+                maxResults: 1000 // High limit to get "all" in one go if possible
             });
-            
-            // console.log(`Searching Camera ${ch.name} (Track ${searchTrackID})...`);
             
             const searchRes = await client.fetch(`${baseUrl}/ISAPI/ContentMgmt/search`, {
                 method: 'POST',
@@ -145,7 +144,6 @@ exports.search = async (req, res) => {
             });
             
             if (!searchRes.ok) {
-                // console.warn(`Search failed for ${ch.name}: ${searchRes.status}`);
                 continue; 
             }
             
@@ -177,7 +175,7 @@ exports.search = async (req, res) => {
                             cameraName: channelMap[trackID] || `Camera ${trackID}`,
                             startTime: startTime,
                             endTime: endTime,
-                            size: size, // Added size field
+                            size: size,
                             playbackURI: media.playbackURI
                         });
                     }

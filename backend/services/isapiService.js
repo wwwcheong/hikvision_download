@@ -18,7 +18,7 @@ const parseXml = async (xmlString) => {
     }
 };
 
-const buildSearchXml = ({ trackID, startTime, endTime }) => {
+const buildSearchXml = ({ trackID, startTime, endTime, position = 0, maxResults = 100 }) => {
     const searchID = crypto.randomUUID();
 
     const obj = {
@@ -33,8 +33,8 @@ const buildSearchXml = ({ trackID, startTime, endTime }) => {
                     endTime: endTime
                 }
             },
-            maxResults: 100,
-            searchResultPostion: 0,
+            maxResults: maxResults,
+            searchResultPostion: position,
             metadataList: {
                 metadataDescriptor: '//recordType.meta.std-cgi.com'
             }

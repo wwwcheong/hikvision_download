@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, TextField, Button } from '@mui/material';
+import { addHours, subHours, format, parseISO, isAfter, isBefore } from 'date-fns';
 
 const SearchForm = ({ onSearch }) => {
     const [times, setTimes] = useState({
@@ -8,7 +9,39 @@ const SearchForm = ({ onSearch }) => {
     });
 
     const handleChange = (e) => {
-        setTimes({ ...times, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        
+        if (!value) {
+            setTimes(prev => ({ ...prev, [name]: value }));
+            return;
+        }
+
+        const dateValue = parseISO(value);
+        const fmt = (d) => format(d, "yyyy-MM-dd'T'HH:mm");
+        
+        let newTimes = { ...times, [name]: value };
+
+        if (name === 'start') {
+            if (!times.end) {
+                newTimes.end = fmt(addHours(dateValue, 1));
+            } else {
+                const endDate = parseISO(times.end);
+                if (isAfter(dateValue, endDate)) {
+                    newTimes.end = fmt(addHours(dateValue, 1));
+                }
+            }
+        } else if (name === 'end') {
+            if (!times.start) {
+                newTimes.start = fmt(subHours(dateValue, 1));
+            } else {
+                const startDate = parseISO(times.start);
+                if (isBefore(dateValue, startDate)) {
+                    newTimes.start = fmt(subHours(dateValue, 1));
+                }
+            }
+        }
+
+        setTimes(newTimes);
     };
 
     const handleSubmit = (e) => {

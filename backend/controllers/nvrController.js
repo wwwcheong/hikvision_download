@@ -158,10 +158,26 @@ exports.search = async (req, res) => {
                 matches.forEach(m => {
                     const media = m.mediaSegmentDescriptor;
                     if (media) {
+                        let startTime = media.startTime;
+                        let endTime = media.endTime;
+                        let size = null;
+
+                        // Extract metadata from playbackURI parameters
+                        if (media.playbackURI) {
+                            const startMatch = media.playbackURI.match(/starttime=([^&]+)/);
+                            const endMatch = media.playbackURI.match(/endtime=([^&]+)/);
+                            const sizeMatch = media.playbackURI.match(/size=([^&]+)/);
+
+                            if (startMatch) startTime = startMatch[1];
+                            if (endMatch) endTime = endMatch[1];
+                            if (sizeMatch) size = sizeMatch[1];
+                        }
+
                         results.push({
                             cameraName: channelMap[trackID] || `Camera ${trackID}`,
-                            startTime: media.startTime,
-                            endTime: media.endTime,
+                            startTime: startTime,
+                            endTime: endTime,
+                            size: size, // Added size field
                             playbackURI: media.playbackURI
                         });
                     }
@@ -219,7 +235,20 @@ exports.download = async (req, res) => {
     
     try {
         // playbackURI needs to be encoded as it contains special chars like &
-        const downloadUrl = `${baseUrl}/ISAPI/ContentMgmt/download?playbackURI=${encodeURIComponent(playbackURI)}`;
+        // However, standard encodeURIComponent encodes chars like :, /, ? which are valid in query values
+        // and some NVRs fail to parse them if encoded.
+        // We only MUST encode delimiters that would break the outer URL parsing: & and = (and spaces, % etc)
+        
+        let encodedURI = encodeURIComponent(playbackURI);
+        
+        // Revert safe characters that NVR might expect raw
+        encodedURI = encodedURI
+            .replace(/%3A/g, ':')
+            .replace(/%2F/g, '/')
+            .replace(/%3F/g, '?')
+            .replace(/%3D/g, '=');
+
+        const downloadUrl = `${baseUrl}/ISAPI/ContentMgmt/download?playbackURI=${encodedURI}`;
         
         console.log(`Proxying download: ${fileName || 'video.mp4'}`);
         

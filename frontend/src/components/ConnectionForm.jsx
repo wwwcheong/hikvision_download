@@ -16,7 +16,7 @@ const ConnectionForm = ({ onConnect }) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = ''; // import.meta.env.VITE_API_URL || '';
 
     const handleSubmit = async (e) => {
         e.preventDefault();

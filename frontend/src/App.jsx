@@ -15,10 +15,10 @@ function App() {
   const handleConnect = (creds, channelList) => {
     setCredentials(creds);
     setChannels(channelList);
-    setResults([]); // Reset results
+    setResults(null); // Reset results
   };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = ''; // import.meta.env.VITE_API_URL || '';
 
   const handleSearch = async (startTime, endTime) => {
     setLoading(true);
@@ -57,6 +57,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
            
            <SearchForm onSearch={handleSearch} />
            
+           {results && (
+             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+               Found {results.length} recordings
+             </Typography>
+           )}
+
            {loading && <Typography>Searching...</Typography>}
            {error && <Alert severity="error">{error}</Alert>}
            {results && <ResultsTable results={results} credentials={credentials} />}

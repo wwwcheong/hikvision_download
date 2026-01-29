@@ -2,7 +2,7 @@ import React from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button } from '@mui/material';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = ''; // import.meta.env.VITE_API_URL || '';
 
 const ResultsTable = ({ results, credentials }) => {
     const formatDate = (raw) => {

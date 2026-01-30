@@ -41,30 +41,33 @@ const API_URL = ''; // import.meta.env.VITE_API_URL || '';
   };
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom align="center">
+    <Container maxWidth="md" sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
+      <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ flexShrink: 0 }}>
         Hikvision NVR Downloader
       </Typography>
 
       {!credentials ? (
         <ConnectionForm onConnect={handleConnect} />
       ) : (
-        <Box>
-           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-             <Typography variant="subtitle1">Connected to {credentials.ip} ({channels.length} cameras found)</Typography>
-             <Button onClick={() => setCredentials(null)}>Disconnect</Button>
+        <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
+           <Box sx={{ flexShrink: 0 }}>
+             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+               <Typography variant="subtitle1">Connected to {credentials.ip} ({channels.length} cameras found)</Typography>
+               <Button onClick={() => setCredentials(null)}>Disconnect</Button>
+             </Box>
+             
+             <SearchForm onSearch={handleSearch} />
+             
+             {results && (
+               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                 Found {results.length} recordings
+               </Typography>
+             )}
+
+             {loading && <Typography>Searching...</Typography>}
+             {error && <Alert severity="error">{error}</Alert>}
            </Box>
            
-           <SearchForm onSearch={handleSearch} />
-           
-           {results && (
-             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-               Found {results.length} recordings
-             </Typography>
-           )}
-
-           {loading && <Typography>Searching...</Typography>}
-           {error && <Alert severity="error">{error}</Alert>}
            {results && <ResultsTable results={results} credentials={credentials} />}
         </Box>
       )}

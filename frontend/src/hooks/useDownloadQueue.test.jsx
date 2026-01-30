@@ -116,9 +116,6 @@ describe('useDownloadQueue', () => {
             );
         });
 
-        // Simulate progress if we could access the callback, but difficult with simple mock.
-        // Instead, verify it finishes.
-
         await waitFor(() => {
              expect(createElementSpy).toHaveBeenCalledWith('a');
         });
@@ -147,5 +144,27 @@ describe('useDownloadQueue', () => {
 
         expect(result.current.queue[0].error).toBe('Network Error');
         expect(result.current.isProcessing).toBe(false);
+    });
+
+    it('should retry failed items', async () => {
+        // 1. Fail first
+        axios.post.mockRejectedValueOnce(new Error('Network Error'));
+        const { result } = renderHook(() => useDownloadQueue(credentials));
+
+        act(() => {
+            result.current.addToQueue([mockItem1]);
+        });
+
+        await waitFor(() => {
+             expect(result.current.queue[0].status).toBe('error');
+        });
+
+        // 2. Retry
+        act(() => {
+            result.current.retryFailed();
+        });
+
+        expect(['pending', 'downloading']).toContain(result.current.queue[0].status);
+        expect(result.current.queue[0].error).toBeNull();
     });
 });

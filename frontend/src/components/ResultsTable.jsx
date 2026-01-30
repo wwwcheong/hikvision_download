@@ -24,9 +24,10 @@ const formatSize = (bytes) => {
 
 const ResultsTable = ({ results, credentials }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
-    const { queue, addToQueue, isProcessing, currentProgress, currentFileName } = useDownloadQueue(credentials);
+    const { queue, addToQueue, retryFailed, isProcessing, currentProgress, currentFileName } = useDownloadQueue(credentials);
 
     // Selection Logic
+    // ... (keep existing selection logic)
     const handleSelectAll = (event) => {
         if (event.target.checked) {
             const allIds = new Set(results.map(r => r.playbackURI));
@@ -63,7 +64,8 @@ const ResultsTable = ({ results, credentials }) => {
     const pendingCount = queue.filter(i => i.status === 'pending').length;
     const downloadingCount = queue.filter(i => i.status === 'downloading').length;
     const completedCount = queue.filter(i => i.status === 'completed').length;
-    const errorCount = queue.filter(i => i.status === 'error').length;
+    const failedItems = queue.filter(i => i.status === 'error');
+    const errorCount = failedItems.length;
     const totalInQueue = queue.length;
     const activeProgress = totalInQueue > 0 ? ((completedCount + errorCount) / totalInQueue) * 100 : 0;
     
@@ -71,41 +73,61 @@ const ResultsTable = ({ results, credentials }) => {
     const showProgress = totalInQueue > 0;
 
     return (
-        <Box sx={{ mt: 2 }}>
+        <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
             {/* Batch Actions & Progress */}
-            <Stack direction="row" spacing={2} alignItems="flex-start" sx={{ mb: 2 }}>
-                <Button 
-                    variant="contained" 
-                    color="primary" 
-                    // Fix F1: Don't disable while processing, allow queuing more
-                    disabled={selectedIds.size === 0}
-                    onClick={handleDownloadSelected}
-                >
-                    Download Selected ({selectedIds.size})
-                </Button>
-                
-                {showProgress && (
-                    <Stack spacing={1} sx={{ flexGrow: 1 }}>
-                        <Box>
-                            <Typography variant="body2" color="textSecondary">
-                                Batch Status: {completedCount} done, {errorCount} failed, {pendingCount + downloadingCount} remaining
-                            </Typography>
-                            <LinearProgress variant="determinate" value={activeProgress} />
-                        </Box>
-                        {isProcessing && currentFileName && (
+            <Box sx={{ flexShrink: 0, mb: 2 }}>
+                <Stack direction="row" spacing={2} alignItems="flex-start">
+                    <Button 
+                        variant="contained" 
+                        color="primary" 
+                        // Fix F1: Don't disable while processing, allow queuing more
+                        disabled={selectedIds.size === 0}
+                        onClick={handleDownloadSelected}
+                    >
+                        Download Selected ({selectedIds.size})
+                    </Button>
+                    
+                    {showProgress && (
+                        <Stack spacing={1} sx={{ flexGrow: 1 }}>
                             <Box>
-                                <Typography variant="caption" color="primary">
-                                    Downloading: {currentFileName} ({currentProgress}%)
+                                <Typography variant="body2" color="textSecondary">
+                                    Batch Status: {completedCount} done, {errorCount} failed, {pendingCount + downloadingCount} remaining
                                 </Typography>
-                                <LinearProgress variant="determinate" value={currentProgress} color="secondary" />
+                                <LinearProgress variant="determinate" value={activeProgress} />
                             </Box>
-                        )}
-                    </Stack>
-                )}
-            </Stack>
+                            {isProcessing && currentFileName && (
+                                <Box>
+                                    <Typography variant="caption" color="primary">
+                                        Downloading: {currentFileName} ({currentProgress}%)
+                                    </Typography>
+                                    <LinearProgress variant="determinate" value={currentProgress} color="secondary" />
+                                </Box>
+                            )}
+                            
+                            {errorCount > 0 && (
+                                <Stack direction="row" alignItems="center" spacing={2} sx={{ mt: 1, p: 1, bgcolor: '#fff0f0', borderRadius: 1 }}>
+                                    <Typography variant="body2" color="error">
+                                        {errorCount} failed downloads
+                                    </Typography>
+                                    <Button size="small" variant="outlined" color="error" onClick={retryFailed}>
+                                        Retry Failed
+                                    </Button>
+                                    <Box sx={{ maxHeight: 60, overflowY: 'auto', width: '100%' }}>
+                                        {failedItems.map((item, idx) => (
+                                            <Typography key={idx} variant="caption" display="block" color="error">
+                                                {item.cameraName}: {item.error || 'Unknown error'}
+                                            </Typography>
+                                        ))}
+                                    </Box>
+                                </Stack>
+                            )}
+                        </Stack>
+                    )}
+                </Stack>
+            </Box>
 
-            <TableContainer component={Paper}>
-                <Table>
+            <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto' }}>
+                <Table stickyHeader>
                     <TableHead>
                         <TableRow>
                             <TableCell padding="checkbox">

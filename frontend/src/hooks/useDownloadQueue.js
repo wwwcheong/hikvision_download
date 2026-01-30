@@ -103,9 +103,18 @@ const useDownloadQueue = (credentials) => {
         processQueue();
     }, [queue, credentials]);
 
+    const retryFailed = () => {
+        setQueue(prev => prev.map(item => 
+            item.status === 'error' 
+                ? { ...item, status: 'pending', error: null }
+                : item
+        ));
+    };
+
     return {
         queue,
         addToQueue,
+        retryFailed,
         isProcessing,
         currentProgress,
         currentFileName

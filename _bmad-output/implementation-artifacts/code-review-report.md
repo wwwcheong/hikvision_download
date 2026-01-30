@@ -1,41 +1,16 @@
-# 🔥 CODE REVIEW FINDINGS, weng!
+# Adversarial Review Findings
 
-**Story:** Hotfix: NVR Search Bug
-**Git vs Story Discrepancies:** N/A (Ad-hoc Fix)
-**Issues Found:** 1 High, 1 Medium, 0 Low
+I have reviewed the changes and found the following issues:
 
-## 🔴 CRITICAL ISSUES
-- **Bug Confirmed:** Search functionality returned "no result" (actually 500 Device Error) when `endTime` was earlier than `startTime` (e.g. 11:00 AM to 12:00 AM/Midnight same day).
-- **Missing Validation:** `nvrController.js` failed to validate that `startTime < endTime` before sending request to NVR.
-
-## 🟡 MEDIUM ISSUES
-- **Brittle Logic:** Channel ID mapping (`id * 100 + 1`) relies on specific NVR behavior. Verified working for current NVR (ID 1 -> 101), but risky for future compatibility.
-
-## 🟢 LOW ISSUES
-- None investigated in this hotfix scope.
-
----
-
-## 🛠️ ACTIONS TAKEN
-
-**Selected Option:** 1. **Fix them automatically**
-
-**Fixes Applied:**
-1.  **Modified `backend/controllers/nvrController.js`**:
-    -   Added strictly typed parsing of `startTime` and `endTime`.
-    -   Added validation check: `if (start >= end) return 400`.
-    -   Ensures user receives a clear "Start time must be before end time" error instead of a generic failure or empty result.
-
-**Verification:**
--   Created and ran `reproduce_issue.js` against the live NVR.
--   Confirmed NVR returns `500` for invalid range.
--   Confirmed NVR returns `Success` for valid range (Noon).
--   The fix intercepts the invalid range at the API layer, preventing the 500 error.
-
-**Result:**
-Search bug resolved. The system now robustly handles invalid date ranges.
-
-**✅ Review Complete!**
-**Story Status:** done
-**Issues Fixed:** 1
-**Action Items Created:** 0
+| ID | Severity | Validity | Description |
+| :--- | :--- | :--- | :--- |
+| F1 | Medium | Real | **Queue Blocking:** The "Download Selected" button is disabled when `isProcessing` is true. This prevents users from adding more items to the queue while a batch is downloading, effectively making it a "batch processor" rather than a "queue". |
+| F2 | Low | Real | **Duplicate Queueing:** `addToQueue` does not check if an item is already in the queue. Users can accidentally queue the same file multiple times by clicking "Download" repeatedly. |
+| F3 | Low | Real | **Progress Visibility:** The progress bar and status text disappear immediately when the queue becomes inactive (all done). Users cannot review the final status (e.g., "5 completed, 0 failed") after completion. |
+| F4 | Low | Valid | **Performance:** `handleSelectRow` creates a new `Set` from existing selections on every click (`new Set(selectedIds)`). For large tables, this O(N) operation could cause UI lag. |
+| F5 | Low | Valid | **Code Quality:** `formatDate` and `formatSize` helper functions are defined inside the component and recreated on every render. They should be moved outside or memoized. |
+| F6 | Low | Suggestion | **UX:** Missing "Clear Selection" button. Users must deselect manually or toggle "Select All" to clear specific complex selections. |
+| F7 | Low | Suggestion | **UX:** No mechanism to cancel the queue or clear completed/failed items from the history/memory. |
+| F8 | Low | Debate | **Hardcoded Delay:** The 1500ms delay in `useDownloadQueue` is hardcoded. It might be too slow for large batches (adding minutes of wait time) or arbitrary. |
+| F9 | Low | Valid | **Missing Tests:** `ResultsTable.jsx` logic (checkbox interactions, button clicks) is not unit tested; only the hook was tested. |
+| F10 | Low | Edge Case | **Credentials:** If `credentials` prop changes while queue is processing (unlikely but possible), the effect dependency restarts the process or might use mixed state. |

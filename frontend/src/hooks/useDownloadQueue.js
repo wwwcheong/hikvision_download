@@ -67,16 +67,20 @@ const useDownloadQueue = (credentials) => {
                 if (res.data.success && res.data.token) {
                     const url = `${API_URL}/api/download?token=${res.data.token}`;
                     
-                    // 2. Trigger Download via Anchor Tag (Avoids Pop-up blocker)
+                    // 2. Fetch Blob via Axios to wait for download completion
+                    const fileRes = await axios.get(url, { responseType: 'blob' });
+                    
+                    // 3. Trigger Save
+                    const blobUrl = window.URL.createObjectURL(new Blob([fileRes.data]));
                     const link = document.createElement('a');
-                    link.href = url;
+                    link.href = blobUrl;
                     link.setAttribute('download', fileName);
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-
-                    // 3. Wait a bit to ensure browser handles it and to stagger downloads
-                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    // Clean up URL object to free memory
+                    window.URL.revokeObjectURL(blobUrl);
 
                     // Mark completed
                     setQueue(prev => prev.map((qItem, idx) => 

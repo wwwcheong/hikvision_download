@@ -32,6 +32,12 @@ describe('useDownloadQueue', () => {
         vi.clearAllMocks();
         // Mock default axios response
         axios.post.mockResolvedValue({ data: { success: true, token: 'default-token' } });
+        // Mock blob response
+        axios.get.mockResolvedValue({ data: new Blob(['test content']) });
+
+        // Mock URL.createObjectURL and revokeObjectURL
+        global.URL.createObjectURL = vi.fn(() => 'blob:http://localhost/test-blob');
+        global.URL.revokeObjectURL = vi.fn();
 
         createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
             if (tagName === 'a') {
@@ -98,13 +104,18 @@ describe('useDownloadQueue', () => {
         expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/api/download-token'), expect.objectContaining({
             playbackURI: mockItem1.playbackURI
         }));
+        
+        // Wait for download GET request
+        await waitFor(() => {
+            expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/download?token=test-token'), expect.any(Object));
+        });
 
         await waitFor(() => {
              expect(createElementSpy).toHaveBeenCalledWith('a');
         });
         
         await waitFor(() => {
-             expect(result.current.queue[0].status).toBe('downloading');
+             expect(result.current.queue[0].status).toBe('completed');
         });
     });
 

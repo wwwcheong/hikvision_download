@@ -60,6 +60,8 @@ describe('useDownloadQueue', () => {
         const { result } = renderHook(() => useDownloadQueue(credentials));
         expect(result.current.queue).toEqual([]);
         expect(result.current.isProcessing).toBe(false);
+        expect(result.current.currentProgress).toBe(0);
+        expect(result.current.currentFileName).toBe('');
     });
 
     it('should add items to queue', async () => {
@@ -99,6 +101,7 @@ describe('useDownloadQueue', () => {
 
         await waitFor(() => {
             expect(result.current.isProcessing).toBe(true);
+            expect(result.current.currentFileName).toContain('Cam_1');
         });
 
         expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/api/download-token'), expect.objectContaining({
@@ -107,8 +110,14 @@ describe('useDownloadQueue', () => {
         
         // Wait for download GET request
         await waitFor(() => {
-            expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/download?token=test-token'), expect.any(Object));
+            expect(axios.get).toHaveBeenCalledWith(
+                expect.stringContaining('/api/download?token=test-token'), 
+                expect.objectContaining({ responseType: 'blob' })
+            );
         });
+
+        // Simulate progress if we could access the callback, but difficult with simple mock.
+        // Instead, verify it finishes.
 
         await waitFor(() => {
              expect(createElementSpy).toHaveBeenCalledWith('a');
@@ -116,6 +125,8 @@ describe('useDownloadQueue', () => {
         
         await waitFor(() => {
              expect(result.current.queue[0].status).toBe('completed');
+             expect(result.current.isProcessing).toBe(false);
+             expect(result.current.currentFileName).toBe('');
         });
     });
 

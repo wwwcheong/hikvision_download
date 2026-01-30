@@ -24,7 +24,7 @@ const formatSize = (bytes) => {
 
 const ResultsTable = ({ results, credentials }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
-    const { queue, addToQueue, isProcessing } = useDownloadQueue(credentials);
+    const { queue, addToQueue, isProcessing, currentProgress, currentFileName } = useDownloadQueue(credentials);
 
     // Selection Logic
     const handleSelectAll = (event) => {
@@ -73,7 +73,7 @@ const ResultsTable = ({ results, credentials }) => {
     return (
         <Box sx={{ mt: 2 }}>
             {/* Batch Actions & Progress */}
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <Stack direction="row" spacing={2} alignItems="flex-start" sx={{ mb: 2 }}>
                 <Button 
                     variant="contained" 
                     color="primary" 
@@ -85,12 +85,22 @@ const ResultsTable = ({ results, credentials }) => {
                 </Button>
                 
                 {showProgress && (
-                    <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="body2" color="textSecondary">
-                            Status: {completedCount} done, {errorCount} failed, {pendingCount + downloadingCount} remaining
-                        </Typography>
-                        <LinearProgress variant="determinate" value={activeProgress} />
-                    </Box>
+                    <Stack spacing={1} sx={{ flexGrow: 1 }}>
+                        <Box>
+                            <Typography variant="body2" color="textSecondary">
+                                Batch Status: {completedCount} done, {errorCount} failed, {pendingCount + downloadingCount} remaining
+                            </Typography>
+                            <LinearProgress variant="determinate" value={activeProgress} />
+                        </Box>
+                        {isProcessing && currentFileName && (
+                            <Box>
+                                <Typography variant="caption" color="primary">
+                                    Downloading: {currentFileName} ({currentProgress}%)
+                                </Typography>
+                                <LinearProgress variant="determinate" value={currentProgress} color="secondary" />
+                            </Box>
+                        )}
+                    </Stack>
                 )}
             </Stack>
 

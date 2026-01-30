@@ -6,7 +6,9 @@ const API_URL = ''; // Relative path for now, same as ResultsTable
 const useDownloadQueue = (credentials) => {
     const [queue, setQueue] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
-    const processingRef = useRef(false); // Ref to track processing state instantly without re-renders affecting logic loop
+    const [currentProgress, setCurrentProgress] = useState(0);
+    const [currentFileName, setCurrentFileName] = useState('');
+    const processingRef = useRef(false);
 
     const addToQueue = (items) => {
         setQueue(prev => {
@@ -15,25 +17,12 @@ const useDownloadQueue = (credentials) => {
                 .filter(item => !existingIds.has(item.playbackURI))
                 .map(item => ({
                     ...item,
-                    id: item.playbackURI, // Unique ID
-                    status: 'pending', // pending, downloading, completed, error
+                    id: item.playbackURI,
+                    status: 'pending',
                     error: null
                 }));
             return [...prev, ...newItems];
         });
-    };
-
-    const processNext = async () => {
-        if (processingRef.current) return;
-
-        // Find next pending item
-        // We use a functional update to get the latest queue state, 
-        // but we need to identify the item *outside* the setter to perform async ops.
-        // So we rely on the `queue` dependency in useEffect, which might be tricky if queue updates frequently.
-        // Better approach: use a ref for the queue or just select from current state if valid.
-        
-        // However, standard effect pattern:
-        // useEffect(() => { if (!isProcessing && hasPending) processNext(); }, [queue, isProcessing]);
     };
 
     useEffect(() => {
@@ -45,6 +34,7 @@ const useDownloadQueue = (credentials) => {
 
             processingRef.current = true;
             setIsProcessing(true);
+            setCurrentProgress(0);
 
             const item = queue[pendingIndex];
 
@@ -54,10 +44,11 @@ const useDownloadQueue = (credentials) => {
             ));
 
             try {
-                // 1. Get Token
                 const { ip, port, username, password } = credentials;
                 const fileName = `${item.cameraName.replace(/\s+/g, '_')}_${item.startTime}_${item.endTime}.mp4`.replace(/:/g, '-');
-                
+                setCurrentFileName(fileName);
+
+                // 1. Get Token
                 const res = await axios.post(`${API_URL}/api/download-token`, {
                     ip, port, username, password,
                     playbackURI: item.playbackURI,
@@ -67,8 +58,16 @@ const useDownloadQueue = (credentials) => {
                 if (res.data.success && res.data.token) {
                     const url = `${API_URL}/api/download?token=${res.data.token}`;
                     
-                    // 2. Fetch Blob via Axios to wait for download completion
-                    const fileRes = await axios.get(url, { responseType: 'blob' });
+                    // 2. Fetch Blob with Progress
+                    const fileRes = await axios.get(url, { 
+                        responseType: 'blob',
+                        onDownloadProgress: (progressEvent) => {
+                            if (progressEvent.total) {
+                                const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                                setCurrentProgress(percent);
+                            }
+                        }
+                    });
                     
                     // 3. Trigger Save
                     const blobUrl = window.URL.createObjectURL(new Blob([fileRes.data]));
@@ -79,7 +78,6 @@ const useDownloadQueue = (credentials) => {
                     link.click();
                     document.body.removeChild(link);
                     
-                    // Clean up URL object to free memory
                     window.URL.revokeObjectURL(blobUrl);
 
                     // Mark completed
@@ -97,7 +95,8 @@ const useDownloadQueue = (credentials) => {
             } finally {
                 processingRef.current = false;
                 setIsProcessing(false);
-                // The effect will run again because `queue` changed (status update) and trigger the next one.
+                setCurrentFileName('');
+                setCurrentProgress(0);
             }
         };
 
@@ -107,7 +106,9 @@ const useDownloadQueue = (credentials) => {
     return {
         queue,
         addToQueue,
-        isProcessing
+        isProcessing,
+        currentProgress,
+        currentFileName
     };
 };
 

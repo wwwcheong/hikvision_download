@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import axios from 'axios';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import App from './App';
 
 vi.mock('axios');
@@ -10,6 +12,14 @@ describe('App Integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
+
+  const renderApp = () => {
+    return render(
+      <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <App />
+      </LocalizationProvider>
+    );
+  };
 
   it('displays result count after successful search', async () => {
     // Mock connect response
@@ -31,7 +41,7 @@ describe('App Integration', () => {
       }
     });
 
-    render(<App />);
+    renderApp();
 
     // 1. Connect
     fireEvent.change(screen.getByLabelText(/IP Address/i), { target: { value: '192.168.1.100' } });
@@ -46,14 +56,7 @@ describe('App Integration', () => {
     });
 
     // 2. Search
-    // SearchForm has datetime-local inputs.
-    // We need to set them.
-    const startInput = screen.getByLabelText(/Start Time/i);
-    const endInput = screen.getByLabelText(/End Time/i);
-
-    fireEvent.change(startInput, { target: { value: '2023-01-01T12:00' } });
-    fireEvent.change(endInput, { target: { value: '2023-01-01T13:00' } });
-
+    // SearchForm has default values (Today).
     fireEvent.click(screen.getByRole('button', { name: /Search/i }));
 
     // 3. Verify Count
@@ -79,7 +82,7 @@ describe('App Integration', () => {
       }
     });
 
-    render(<App />);
+    renderApp();
 
     // Connect (Simplify by skipping re-typing since it's a fresh render but same flow)
     fireEvent.change(screen.getByLabelText(/IP Address/i), { target: { value: '192.168.1.100' } });
@@ -93,8 +96,6 @@ describe('App Integration', () => {
     });
 
     // Search
-    fireEvent.change(screen.getByLabelText(/Start Time/i), { target: { value: '2023-01-01T12:00' } });
-    fireEvent.change(screen.getByLabelText(/End Time/i), { target: { value: '2023-01-01T13:00' } });
     fireEvent.click(screen.getByRole('button', { name: /Search/i }));
 
     // Verify Count 0

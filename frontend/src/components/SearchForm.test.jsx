@@ -1,82 +1,61 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import SearchForm from './SearchForm';
-import { addHours, subHours, format, parseISO } from 'date-fns';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import * as dateFns from 'date-fns';
 
-describe('SearchForm Date Auto-Selection', () => {
+// Mock date-fns to easily trigger validation
+vi.mock('date-fns', async () => {
+    const actual = await vi.importActual('date-fns');
+    return {
+        ...actual,
+        isAfter: vi.fn(),
+    };
+});
+
+describe('SearchForm', () => {
     const onSearch = vi.fn();
 
-    const renderComponent = () => render(<SearchForm onSearch={onSearch} />);
+    const renderComponent = () => render(
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <SearchForm onSearch={onSearch} />
+        </LocalizationProvider>
+    );
 
-    const getStartInput = () => screen.getByLabelText(/Start Time/i);
-    const getEndInput = () => screen.getByLabelText(/End Time/i);
-
-    const fmt = (date) => format(date, "yyyy-MM-dd'T'HH:mm");
-
-    it('sets end date to 1 hour after start date when end is empty', () => {
-        renderComponent();
-        const startInput = getStartInput();
-        const endInput = getEndInput();
-
-        const startDate = new Date(2026, 0, 29, 10, 0); // Jan 29, 10:00
-        fireEvent.change(startInput, { target: { value: fmt(startDate) } });
-
-        expect(startInput.value).toBe(fmt(startDate));
-        expect(endInput.value).toBe(fmt(addHours(startDate, 1)));
+    beforeEach(() => {
+        vi.clearAllMocks();
+        // Default behavior for isAfter (start is NOT after end)
+        vi.mocked(dateFns.isAfter).mockReturnValue(false);
     });
 
-    it('sets start date to 1 hour before end date when start is empty', () => {
+    it('renders all date/time inputs', () => {
         renderComponent();
-        const startInput = getStartInput();
-        const endInput = getEndInput();
-
-        const endDate = new Date(2026, 0, 29, 12, 0); // Jan 29, 12:00
-        fireEvent.change(endInput, { target: { value: fmt(endDate) } });
-
-        expect(endInput.value).toBe(fmt(endDate));
-        expect(startInput.value).toBe(fmt(subHours(endDate, 1)));
+        expect(screen.getAllByLabelText(/Start Date/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByLabelText(/Start Time/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByLabelText(/End Date/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByLabelText(/End Time/i).length).toBeGreaterThan(0);
     });
 
-    it('updates end date when start date is changed to be after end date', () => {
+    it('calls onSearch with formatted dates when Search is clicked', () => {
         renderComponent();
-        const startInput = getStartInput();
-        const endInput = getEndInput();
-
-        // Initial valid state
-        const initialStart = new Date(2026, 0, 29, 10, 0);
-        const initialEnd = new Date(2026, 0, 29, 12, 0);
+        fireEvent.click(screen.getByRole('button', { name: /Search/i }));
         
-        fireEvent.change(startInput, { target: { value: fmt(initialStart) } });
-        // Since the previous logic might auto-fill end, let's explicitly set end to what we want to test "initial state"
-        fireEvent.change(endInput, { target: { value: fmt(initialEnd) } });
-        
-        expect(endInput.value).toBe(fmt(initialEnd));
-
-        // Change start to after end (13:00)
-        const newStart = new Date(2026, 0, 29, 13, 0);
-        fireEvent.change(startInput, { target: { value: fmt(newStart) } });
-
-        expect(startInput.value).toBe(fmt(newStart));
-        expect(endInput.value).toBe(fmt(addHours(newStart, 1)));
+        expect(onSearch).toHaveBeenCalled();
+        const args = onSearch.mock.calls[0];
+        expect(typeof args[0]).toBe('string');
+        expect(typeof args[1]).toBe('string');
+        expect(args[0]).toContain('Z');
     });
 
-    it('updates start date when end date is changed to be before start date', () => {
+    it('disables Search button and shows warning if isAfter returns true', async () => {
+        // Force isAfter to return true (Start > End)
+        vi.mocked(dateFns.isAfter).mockReturnValue(true);
+        
         renderComponent();
-        const startInput = getStartInput();
-        const endInput = getEndInput();
 
-        // Initial valid state
-        const initialStart = new Date(2026, 0, 29, 10, 0);
-        const initialEnd = new Date(2026, 0, 29, 12, 0);
-
-        fireEvent.change(startInput, { target: { value: fmt(initialStart) } });
-        fireEvent.change(endInput, { target: { value: fmt(initialEnd) } });
-
-        // Change end to before start (09:00)
-        const newEnd = new Date(2026, 0, 29, 9, 0);
-        fireEvent.change(endInput, { target: { value: fmt(newEnd) } });
-
-        expect(endInput.value).toBe(fmt(newEnd));
-        expect(startInput.value).toBe(fmt(subHours(newEnd, 1)));
+        // The useEffect runs on mount, so the error should be there
+        expect(screen.getByText(/Start time cannot be after end time/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Search/i })).toBeDisabled();
     });
 });

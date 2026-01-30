@@ -1,76 +1,92 @@
-import React, { useState } from 'react';
-import { Box, TextField, Button } from '@mui/material';
-import { addHours, subHours, format, parseISO, isAfter, isBefore } from 'date-fns';
+import React, { useState, useEffect } from 'react';
+import { Box, Button, Alert, Stack } from '@mui/material';
+import { DatePicker, TimePicker } from '@mui/x-date-pickers';
+import { startOfDay, endOfDay, isAfter, format, set } from 'date-fns';
 
 const SearchForm = ({ onSearch }) => {
-    const [times, setTimes] = useState({
-        start: '',
-        end: ''
-    });
+    // Defaults
+    const [startDate, setStartDate] = useState(new Date());
+    const [startTime, setStartTime] = useState(startOfDay(new Date()));
+    const [endDate, setEndDate] = useState(new Date());
+    const [endTime, setEndTime] = useState(endOfDay(new Date()));
+    
+    const [error, setError] = useState('');
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        
-        if (!value) {
-            setTimes(prev => ({ ...prev, [name]: value }));
-            return;
-        }
-
-        const dateValue = parseISO(value);
-        const fmt = (d) => format(d, "yyyy-MM-dd'T'HH:mm");
-        
-        let newTimes = { ...times, [name]: value };
-
-        if (name === 'start') {
-            if (!times.end) {
-                newTimes.end = fmt(addHours(dateValue, 1));
-            } else {
-                const endDate = parseISO(times.end);
-                if (isAfter(dateValue, endDate)) {
-                    newTimes.end = fmt(addHours(dateValue, 1));
-                }
-            }
-        } else if (name === 'end') {
-            if (!times.start) {
-                newTimes.start = fmt(subHours(dateValue, 1));
-            } else {
-                const startDate = parseISO(times.start);
-                if (isBefore(dateValue, startDate)) {
-                    newTimes.start = fmt(subHours(dateValue, 1));
-                }
-            }
-        }
-
-        setTimes(newTimes);
+    const getCombinedDate = (dateVal, timeVal) => {
+        if (!dateVal || !timeVal) return null;
+        return set(dateVal, {
+            hours: timeVal.getHours(),
+            minutes: timeVal.getMinutes(),
+            seconds: 0,
+            milliseconds: 0
+        });
     };
+
+    const validate = () => {
+        const start = getCombinedDate(startDate, startTime);
+        const end = getCombinedDate(endDate, endTime);
+        
+        if (start && end && isAfter(start, end)) {
+            return 'Start time cannot be after end time';
+        }
+        return '';
+    };
+
+    useEffect(() => {
+        setError(validate());
+    }, [startDate, startTime, endDate, endTime]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const fmt = (t) => t ? `${t}:00Z` : ''; 
-        onSearch(fmt(times.start), fmt(times.end));
+        const start = getCombinedDate(startDate, startTime);
+        const end = getCombinedDate(endDate, endTime);
+        
+        if (validate()) return;
+
+        // Replicate previous behavior: Format as local yyyy-MM-dd'T'HH:mm:ss + 'Z'
+        const fmt = (d) => format(d, "yyyy-MM-dd'T'HH:mm:ss") + 'Z';
+        
+        onSearch(fmt(start), fmt(end));
     };
 
     return (
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', gap: 2, alignItems: 'flex-end', my: 2 }}>
-            <TextField
-                label="Start Time"
-                type="datetime-local"
-                name="start"
-                value={times.start}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                required
-            />
-            <TextField
-                label="End Time"
-                type="datetime-local"
-                name="end"
-                value={times.end}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                required
-            />
-            <Button type="submit" variant="contained">Search</Button>
+        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2, my: 2 }}>
+            <Stack direction="row" spacing={2} alignItems="center">
+                <DatePicker
+                    label="Start Date"
+                    value={startDate}
+                    onChange={(newValue) => setStartDate(newValue)}
+                />
+                <TimePicker
+                    label="Start Time"
+                    value={startTime}
+                    onChange={(newValue) => setStartTime(newValue)}
+                    ampm={false}
+                    views={['hours', 'minutes']}
+                />
+                <DatePicker
+                    label="End Date"
+                    value={endDate}
+                    onChange={(newValue) => setEndDate(newValue)}
+                />
+                <TimePicker
+                    label="End Time"
+                    value={endTime}
+                    onChange={(newValue) => setEndTime(newValue)}
+                    ampm={false}
+                    views={['hours', 'minutes']}
+                />
+                <Button 
+                    type="submit" 
+                    variant="contained" 
+                    disabled={!!error}
+                    size="large"
+                    sx={{ height: '56px' }}
+                >
+                    Search
+                </Button>
+            </Stack>
+            {error && <Alert severity="warning">{error}</Alert>}
         </Box>
     );
 };

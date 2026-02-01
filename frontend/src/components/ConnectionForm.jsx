@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Box, TextField, Button, Typography, Alert } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, TextField, Button, Typography, Alert, Snackbar } from '@mui/material';
 import axios from 'axios';
 
 const ConnectionForm = ({ onConnect }) => {
@@ -11,6 +11,25 @@ const ConnectionForm = ({ onConnect }) => {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [showRestoredMsg, setShowRestoredMsg] = useState(false);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('hik_connection');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                setFormData(prev => ({
+                    ...prev,
+                    ip: parsed.ip || '',
+                    port: parsed.port || '80',
+                    username: parsed.username || ''
+                }));
+                setShowRestoredMsg(true);
+            }
+        } catch (e) {
+            console.error('Failed to load connection details', e);
+        }
+    }, []);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -25,6 +44,14 @@ const API_URL = ''; // import.meta.env.VITE_API_URL || '';
         try {
             const res = await axios.post(`${API_URL}/api/connect`, formData);
             if (res.data.success) {
+                // Save connection details (excluding password)
+                try {
+                    const { password, ...toSave } = formData;
+                    localStorage.setItem('hik_connection', JSON.stringify(toSave));
+                } catch (e) {
+                    console.error('Failed to save connection details', e);
+                }
+
                 onConnect(formData, res.data.channels);
             }
         } catch (err) {
@@ -45,6 +72,12 @@ const API_URL = ''; // import.meta.env.VITE_API_URL || '';
             <Button type="submit" variant="contained" disabled={loading}>
                 {loading ? 'Connecting...' : 'Connect'}
             </Button>
+            <Snackbar
+                open={showRestoredMsg}
+                autoHideDuration={4000}
+                onClose={() => setShowRestoredMsg(false)}
+                message="Connection details restored"
+            />
         </Box>
     );
 };

@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { Container, Typography, Box, Alert, Button } from '@mui/material';
+import { 
+  Container, Typography, Box, Alert, Button,
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
+} from '@mui/material';
 import axios from 'axios';
 import { startOfDay, endOfDay } from 'date-fns';
 import ConnectionForm from './components/ConnectionForm';
 import SearchForm from './components/SearchForm';
 import ResultsTable from './components/ResultsTable';
+import useDownloadQueue from './hooks/useDownloadQueue';
 
 function App() {
   const [credentials, setCredentials] = useState(null);
@@ -12,12 +16,16 @@ function App() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [openCancelDialog, setOpenCancelDialog] = useState(false);
 
   // Lifted state for SearchForm
   const [startDate, setStartDate] = useState(new Date());
   const [startTime, setStartTime] = useState(startOfDay(new Date()));
   const [endDate, setEndDate] = useState(new Date());
   const [endTime, setEndTime] = useState(endOfDay(new Date()));
+
+  // Lifted Download Queue
+  const downloadState = useDownloadQueue(credentials);
 
   const handleConnect = (creds, channelList) => {
     setCredentials(creds);
@@ -90,9 +98,36 @@ function App() {
       {/* Results Section */}
       {credentials && results && (
         <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-           <ResultsTable results={results} credentials={credentials} />
+           <ResultsTable 
+             results={results} 
+             credentials={credentials}
+             downloadState={downloadState}
+             onCancelAll={() => setOpenCancelDialog(true)}
+           />
         </Box>
       )}
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={openCancelDialog}
+        onClose={() => setOpenCancelDialog(false)}
+      >
+        <DialogTitle>Cancel All Downloads?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will stop all active and pending downloads and clear the queue. This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCancelDialog(false)}>No, Keep Downloading</Button>
+          <Button onClick={() => {
+            downloadState.cancelAll();
+            setOpenCancelDialog(false);
+          }} color="error" autoFocus>
+            Yes, Cancel All
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Box, Button, Alert, Stack } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Button, Alert, Stack, Snackbar } from '@mui/material';
 import { DatePicker, TimePicker } from '@mui/x-date-pickers';
-import { isAfter, format, set } from 'date-fns';
+import { isAfter, format, set, differenceInDays, parseISO } from 'date-fns';
 
 const SearchForm = ({ 
     onSearch, 
@@ -12,6 +12,32 @@ const SearchForm = ({
     disabled 
 }) => {
     // Removed local error state
+
+    const [showResetMsg, setShowResetMsg] = useState(false);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('hik_search_params');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                const savedTime = parseISO(parsed.timestamp);
+                
+                if (differenceInDays(new Date(), savedTime) > 7) {
+                    // Stale - show notification (state is already default)
+                    setShowResetMsg(true);
+                    localStorage.removeItem('hik_search_params');
+                } else {
+                    // Load
+                    setStartDate(parseISO(parsed.startDate));
+                    setStartTime(parseISO(parsed.startTime));
+                    setEndDate(parseISO(parsed.endDate));
+                    setEndTime(parseISO(parsed.endTime));
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load search params', e);
+        }
+    }, []); // Run once on mount
 
     const getCombinedDate = (dateVal, timeVal) => {
         if (!dateVal || !timeVal) return null;
@@ -42,6 +68,20 @@ const SearchForm = ({
         const end = getCombinedDate(endDate, endTime);
         
         if (error) return; // Use derived error
+
+        // Persist
+        try {
+            const toSave = {
+                startDate: startDate.toISOString(),
+                startTime: startTime.toISOString(),
+                endDate: endDate.toISOString(),
+                endTime: endTime.toISOString(),
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('hik_search_params', JSON.stringify(toSave));
+        } catch (e) {
+            console.error('Failed to save search params', e);
+        }
 
         // Replicate previous behavior: Format as local yyyy-MM-dd'T'HH:mm:ss + 'Z'
         const fmt = (d) => format(d, "yyyy-MM-dd'T'HH:mm:ss") + 'Z';
@@ -91,6 +131,12 @@ const SearchForm = ({
                 </Button>
             </Stack>
             {error && <Alert severity="warning">{error}</Alert>}
+            <Snackbar
+                open={showResetMsg}
+                autoHideDuration={6000}
+                onClose={() => setShowResetMsg(false)}
+                message="Search filters expired and reset to default"
+            />
         </Box>
     );
 };

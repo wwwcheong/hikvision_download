@@ -3,7 +3,6 @@ import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
     Paper, Button, Checkbox, Box, Typography, LinearProgress, Stack
 } from '@mui/material';
-import useDownloadQueue from '../hooks/useDownloadQueue';
 
 const formatDate = (raw) => {
     if (!raw || raw.length < 15) return raw;
@@ -22,9 +21,9 @@ const formatSize = (bytes) => {
     return `${mb}M`;
 };
 
-const ResultsTable = ({ results, credentials }) => {
+const ResultsTable = ({ results, downloadState, onCancelAll }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
-    const { queue, addToQueue, retryFailed, isProcessing, currentProgress, currentFileName } = useDownloadQueue(credentials);
+    const { queue, addToQueue, retryFailed, isProcessing, currentProgress, currentFileName } = downloadState;
 
     // Selection Logic
     // ... (keep existing selection logic)
@@ -86,6 +85,16 @@ const ResultsTable = ({ results, credentials }) => {
                     >
                         Download Selected ({selectedIds.size})
                     </Button>
+
+                    {totalInQueue > 0 && (
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            onClick={onCancelAll}
+                        >
+                            Cancel All
+                        </Button>
+                    )}
                     
                     {showProgress && (
                         <Stack spacing={1} sx={{ flexGrow: 1 }}>

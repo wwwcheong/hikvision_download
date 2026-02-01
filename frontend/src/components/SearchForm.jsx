@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Box, Button, Alert, Stack } from '@mui/material';
 import { DatePicker, TimePicker } from '@mui/x-date-pickers';
-import { startOfDay, endOfDay, isAfter, format, set } from 'date-fns';
+import { isAfter, format, set } from 'date-fns';
 
-const SearchForm = ({ onSearch }) => {
-    // Defaults
-    const [startDate, setStartDate] = useState(new Date());
-    const [startTime, setStartTime] = useState(startOfDay(new Date()));
-    const [endDate, setEndDate] = useState(new Date());
-    const [endTime, setEndTime] = useState(endOfDay(new Date()));
-    
-    const [error, setError] = useState('');
+const SearchForm = ({ 
+    onSearch, 
+    startDate, setStartDate, 
+    startTime, setStartTime, 
+    endDate, setEndDate, 
+    endTime, setEndTime,
+    disabled 
+}) => {
+    // Removed local error state
 
     const getCombinedDate = (dateVal, timeVal) => {
         if (!dateVal || !timeVal) return null;
@@ -32,16 +33,15 @@ const SearchForm = ({ onSearch }) => {
         return '';
     };
 
-    useEffect(() => {
-        setError(validate());
-    }, [startDate, startTime, endDate, endTime]);
+    // Derived state
+    const error = validate();
 
     const handleSubmit = (e) => {
         e.preventDefault();
         const start = getCombinedDate(startDate, startTime);
         const end = getCombinedDate(endDate, endTime);
         
-        if (validate()) return;
+        if (error) return; // Use derived error
 
         // Replicate previous behavior: Format as local yyyy-MM-dd'T'HH:mm:ss + 'Z'
         const fmt = (d) => format(d, "yyyy-MM-dd'T'HH:mm:ss") + 'Z';
@@ -56,6 +56,7 @@ const SearchForm = ({ onSearch }) => {
                     label="Start Date"
                     value={startDate}
                     onChange={(newValue) => setStartDate(newValue)}
+                    disabled={disabled}
                 />
                 <TimePicker
                     label="Start Time"
@@ -63,11 +64,13 @@ const SearchForm = ({ onSearch }) => {
                     onChange={(newValue) => setStartTime(newValue)}
                     ampm={false}
                     views={['hours', 'minutes']}
+                    disabled={disabled}
                 />
                 <DatePicker
                     label="End Date"
                     value={endDate}
                     onChange={(newValue) => setEndDate(newValue)}
+                    disabled={disabled}
                 />
                 <TimePicker
                     label="End Time"
@@ -75,11 +78,12 @@ const SearchForm = ({ onSearch }) => {
                     onChange={(newValue) => setEndTime(newValue)}
                     ampm={false}
                     views={['hours', 'minutes']}
+                    disabled={disabled}
                 />
                 <Button 
                     type="submit" 
                     variant="contained" 
-                    disabled={!!error}
+                    disabled={!!error || disabled}
                     size="large"
                     sx={{ height: '56px' }}
                 >

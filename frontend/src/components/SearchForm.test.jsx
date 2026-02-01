@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SearchForm from './SearchForm';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -17,11 +17,27 @@ vi.mock('date-fns', async () => {
 describe('SearchForm', () => {
     const onSearch = vi.fn();
 
-    const renderComponent = () => render(
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <SearchForm onSearch={onSearch} />
-        </LocalizationProvider>
-    );
+    const renderComponent = (props = {}) => {
+        const defaultProps = {
+            onSearch,
+            startDate: new Date(),
+            setStartDate: vi.fn(),
+            startTime: new Date(),
+            setStartTime: vi.fn(),
+            endDate: new Date(),
+            setEndDate: vi.fn(),
+            endTime: new Date(),
+            setEndTime: vi.fn(),
+            disabled: false,
+            ...props
+        };
+
+        return render(
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <SearchForm {...defaultProps} />
+            </LocalizationProvider>
+        );
+    };
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -54,7 +70,7 @@ describe('SearchForm', () => {
         
         renderComponent();
 
-        // The useEffect runs on mount, so the error should be there
+        // The validation runs on render, so the error should be there
         expect(screen.getByText(/Start time cannot be after end time/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Search/i })).toBeDisabled();
     });

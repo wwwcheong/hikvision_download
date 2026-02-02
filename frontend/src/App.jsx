@@ -8,6 +8,7 @@ import { startOfDay, endOfDay } from 'date-fns';
 import ConnectionForm from './components/ConnectionForm';
 import SearchForm from './components/SearchForm';
 import ResultsTable from './components/ResultsTable';
+import DownloadQueueMonitor from './components/DownloadQueueMonitor';
 import useDownloadQueue from './hooks/useDownloadQueue';
 
 function App() {
@@ -94,6 +95,14 @@ function App() {
         {loading && <Typography>Searching...</Typography>}
         {error && <Alert severity="error">{error}</Alert>}
       </Box>
+
+      {/* Download Monitor - visible when connected and has items */}
+      {credentials && (
+         <DownloadQueueMonitor 
+            downloadState={downloadState}
+            onCancelAll={() => setOpenCancelDialog(true)}
+         />
+      )}
 
       {/* Results Section */}
       {credentials && results && (

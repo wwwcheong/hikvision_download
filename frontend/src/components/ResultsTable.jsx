@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
-    Paper, Button, Checkbox, Box, Typography, LinearProgress, Stack
+    Paper, Button, Checkbox, Box
 } from '@mui/material';
 
 const formatDate = (raw) => {
@@ -21,12 +21,11 @@ const formatSize = (bytes) => {
     return `${mb}M`;
 };
 
-const ResultsTable = ({ results, downloadState, onCancelAll }) => {
+const ResultsTable = ({ results, downloadState }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
-    const { queue, addToQueue, retryFailed, isProcessing, currentProgress, currentFileName } = downloadState;
+    const { addToQueue } = downloadState;
 
     // Selection Logic
-    // ... (keep existing selection logic)
     const handleSelectAll = (event) => {
         if (event.target.checked) {
             const allIds = new Set(results.map(r => r.playbackURI));
@@ -59,80 +58,19 @@ const ResultsTable = ({ results, downloadState, onCancelAll }) => {
         setSelectedIds(new Set()); // Optional: clear selection after queuing
     };
 
-    // Progress Calculation
-    const pendingCount = queue.filter(i => i.status === 'pending').length;
-    const downloadingCount = queue.filter(i => i.status === 'downloading').length;
-    const completedCount = queue.filter(i => i.status === 'completed').length;
-    const failedItems = queue.filter(i => i.status === 'error');
-    const errorCount = failedItems.length;
-    const totalInQueue = queue.length;
-    const activeProgress = totalInQueue > 0 ? ((completedCount + errorCount) / totalInQueue) * 100 : 0;
-    
-    // Fix F3: Show if queue has items, not just if active
-    const showProgress = totalInQueue > 0;
-
     return (
         <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
-            {/* Batch Actions & Progress */}
+            {/* Batch Actions */}
             <Box sx={{ flexShrink: 0, mb: 2 }}>
-                <Stack direction="row" spacing={2} alignItems="flex-start">
-                    <Button 
-                        variant="contained" 
-                        color="primary" 
-                        // Fix F1: Don't disable while processing, allow queuing more
-                        disabled={selectedIds.size === 0}
-                        onClick={handleDownloadSelected}
-                    >
-                        Download Selected ({selectedIds.size})
-                    </Button>
-
-                    {totalInQueue > 0 && (
-                        <Button
-                            variant="outlined"
-                            color="error"
-                            onClick={onCancelAll}
-                        >
-                            Cancel All
-                        </Button>
-                    )}
-                    
-                    {showProgress && (
-                        <Stack spacing={1} sx={{ flexGrow: 1 }}>
-                            <Box>
-                                <Typography variant="body2" color="textSecondary">
-                                    Batch Status: {completedCount} done, {errorCount} failed, {pendingCount + downloadingCount} remaining
-                                </Typography>
-                                <LinearProgress variant="determinate" value={activeProgress} />
-                            </Box>
-                            {isProcessing && currentFileName && (
-                                <Box>
-                                    <Typography variant="caption" color="primary">
-                                        Downloading: {currentFileName} ({currentProgress}%)
-                                    </Typography>
-                                    <LinearProgress variant="determinate" value={currentProgress} color="secondary" />
-                                </Box>
-                            )}
-                            
-                            {errorCount > 0 && (
-                                <Stack direction="row" alignItems="center" spacing={2} sx={{ mt: 1, p: 1, bgcolor: '#fff0f0', borderRadius: 1 }}>
-                                    <Typography variant="body2" color="error">
-                                        {errorCount} failed downloads
-                                    </Typography>
-                                    <Button size="small" variant="outlined" color="error" onClick={retryFailed}>
-                                        Retry Failed
-                                    </Button>
-                                    <Box sx={{ maxHeight: 60, overflowY: 'auto', width: '100%' }}>
-                                        {failedItems.map((item, idx) => (
-                                            <Typography key={idx} variant="caption" display="block" color="error">
-                                                {item.cameraName}: {item.error || 'Unknown error'}
-                                            </Typography>
-                                        ))}
-                                    </Box>
-                                </Stack>
-                            )}
-                        </Stack>
-                    )}
-                </Stack>
+                <Button 
+                    variant="contained" 
+                    color="primary" 
+                    // Fix F1: Don't disable while processing, allow queuing more
+                    disabled={selectedIds.size === 0}
+                    onClick={handleDownloadSelected}
+                >
+                    Download Selected ({selectedIds.size})
+                </Button>
             </Box>
 
             <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto' }}>

@@ -34,7 +34,7 @@ const buildSearchXml = ({ trackID, startTime, endTime, position = 0, maxResults 
                 }
             },
             maxResults: maxResults,
-            searchResultPostion: position,
+            searchResultPosition: position,
             metadataList: {
                 metadataDescriptor: '//recordType.meta.std-cgi.com'
             }

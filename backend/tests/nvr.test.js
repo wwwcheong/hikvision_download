@@ -181,6 +181,72 @@ describe('NVR Backend API', () => {
             expect(item.endTime).toBe('20260109T151058Z');
             expect(item.size).toBe('123456');
         });
+
+        it('should handle pagination when moreMatches is true', async () => {
+            const mockClient = {
+                fetch: jest.fn().mockImplementation((url) => {
+                    if (url.includes('channels')) {
+                         return Promise.resolve({ ok: true, text: () => Promise.resolve('<xml>channels</xml>') });
+                    }
+                    if (url.includes('search')) {
+                         return Promise.resolve({ ok: true, text: () => Promise.resolve('<xml>search_response</xml>') });
+                    }
+                    return Promise.reject(new Error('Unknown URL'));
+                })
+            };
+            isapiService.createClient.mockReturnValue(mockClient);
+
+            isapiService.parseXml
+                // 1. Channels
+                .mockResolvedValueOnce({
+                    InputProxyChannelList: { InputProxyChannel: [{ id: '1', name: 'Camera 1' }] }
+                })
+                // 2. Page 1 (moreMatches = true)
+                .mockResolvedValueOnce({
+                    CMSearchResult: {
+                        responseStatus: 'true',
+                        moreMatches: 'true',
+                        matchList: {
+                            searchMatchItem: [
+                                { mediaSegmentDescriptor: { playbackURI: 'rtsp://video1' } },
+                                { mediaSegmentDescriptor: { playbackURI: 'rtsp://video2' } }
+                            ]
+                        }
+                    }
+                })
+                // 3. Page 2 (moreMatches = false)
+                .mockResolvedValueOnce({
+                    CMSearchResult: {
+                        responseStatus: 'true',
+                        moreMatches: 'false',
+                        matchList: {
+                            searchMatchItem: [
+                                { mediaSegmentDescriptor: { playbackURI: 'rtsp://video3' } }
+                            ]
+                        }
+                    }
+                });
+            
+            isapiService.buildSearchXml.mockReturnValue('<xml>search</xml>');
+
+            const res = await request(app)
+                .post('/api/search')
+                .send({
+                    ip: '192.168.1.100',
+                    username: 'admin',
+                    password: 'password',
+                    startTime: '2023-01-01T00:00:00Z',
+                    endTime: '2023-01-01T23:59:59Z'
+                });
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.results).toHaveLength(3); // 2 from page 1 + 1 from page 2
+            
+            // Verify multiple search calls were made
+            // 1 call for channels + 2 calls for search = 3 fetch calls
+            expect(mockClient.fetch).toHaveBeenCalledTimes(3);
+        });
     });
 
     describe('GET /api/download', () => {

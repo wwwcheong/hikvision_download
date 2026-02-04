@@ -130,56 +130,85 @@ exports.search = async (req, res) => {
                 searchTrackID = searchTrackID * 100 + 1;
             }
 
-            const searchXml = isapiService.buildSearchXml({
-                trackID: searchTrackID, 
-                startTime: start.toISOString(), // Ensure strict ISO format (Z)
-                endTime: end.toISOString(),
-                maxResults: 1000 // High limit to get "all" in one go if possible
-            });
-            
-            const searchRes = await client.fetch(`${baseUrl}/ISAPI/ContentMgmt/search`, {
-                method: 'POST',
-                body: searchXml,
-                headers: { 'Content-Type': 'application/xml' }
-            });
-            
-            if (!searchRes.ok) {
-                continue; 
-            }
-            
-            const sXml = await searchRes.text();
-            const sJson = await isapiService.parseXml(sXml);
-            
-            if (sJson.CMSearchResult && sJson.CMSearchResult.matchList && sJson.CMSearchResult.matchList.searchMatchItem) {
-                const matches = normalizeArray(sJson.CMSearchResult.matchList.searchMatchItem);
+            let position = 0;
+            let moreMatches = true;
+            let loopCount = 0;
+            const MAX_LOOPS = 50; // Safety break to prevent infinite loops
+
+            while (moreMatches && loopCount < MAX_LOOPS) {
+                loopCount++;
+                const searchXml = isapiService.buildSearchXml({
+                    trackID: searchTrackID, 
+                    startTime: start.toISOString(), // Ensure strict ISO format (Z)
+                    endTime: end.toISOString(),
+                    maxResults: 100, // Safe batch size
+                    position: position
+                });
                 
-                matches.forEach(m => {
-                    const media = m.mediaSegmentDescriptor;
-                    if (media) {
-                        let startTime = media.startTime;
-                        let endTime = media.endTime;
-                        let size = null;
+                const searchRes = await client.fetch(`${baseUrl}/ISAPI/ContentMgmt/search`, {
+                    method: 'POST',
+                    body: searchXml,
+                    headers: { 'Content-Type': 'application/xml' }
+                });
+                
+                if (!searchRes.ok) {
+                    break; 
+                }
+                
+                const sXml = await searchRes.text();
+                const sJson = await isapiService.parseXml(sXml);
+                
+                let batchCount = 0;
 
-                        // Extract metadata from playbackURI parameters
-                        if (media.playbackURI) {
-                            const startMatch = media.playbackURI.match(/starttime=([^&]+)/);
-                            const endMatch = media.playbackURI.match(/endtime=([^&]+)/);
-                            const sizeMatch = media.playbackURI.match(/size=([^&]+)/);
+                if (sJson.CMSearchResult) {
+                    // Check pagination flags
+                    moreMatches = sJson.CMSearchResult.moreMatches === 'true';
+                    // Some NVRs require checking responseStatus too
+                    if (sJson.CMSearchResult.responseStatus === 'false') {
+                        moreMatches = false;
+                    }
 
-                            if (startMatch) startTime = startMatch[1];
-                            if (endMatch) endTime = endMatch[1];
-                            if (sizeMatch) size = sizeMatch[1];
-                        }
+                    if (sJson.CMSearchResult.matchList && sJson.CMSearchResult.matchList.searchMatchItem) {
+                        const matches = normalizeArray(sJson.CMSearchResult.matchList.searchMatchItem);
+                        batchCount = matches.length;
+                        
+                        matches.forEach(m => {
+                            const media = m.mediaSegmentDescriptor;
+                            if (media) {
+                                let startTime = media.startTime;
+                                let endTime = media.endTime;
+                                let size = null;
 
-                        results.push({
-                            cameraName: channelMap[trackID] || `Camera ${trackID}`,
-                            startTime: startTime,
-                            endTime: endTime,
-                            size: size,
-                            playbackURI: media.playbackURI
+                                // Extract metadata from playbackURI parameters
+                                if (media.playbackURI) {
+                                    const startMatch = media.playbackURI.match(/starttime=([^&]+)/);
+                                    const endMatch = media.playbackURI.match(/endtime=([^&]+)/);
+                                    const sizeMatch = media.playbackURI.match(/size=([^&]+)/);
+
+                                    if (startMatch) startTime = startMatch[1];
+                                    if (endMatch) endTime = endMatch[1];
+                                    if (sizeMatch) size = sizeMatch[1];
+                                }
+
+                                results.push({
+                                    cameraName: channelMap[trackID] || `Camera ${trackID}`,
+                                    startTime: startTime,
+                                    endTime: endTime,
+                                    size: size,
+                                    playbackURI: media.playbackURI
+                                });
+                            }
                         });
                     }
-                });
+                } else {
+                    moreMatches = false;
+                }
+
+                if (batchCount === 0) {
+                    moreMatches = false;
+                }
+                
+                position += batchCount;
             }
         }
         

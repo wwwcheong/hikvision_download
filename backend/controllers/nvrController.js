@@ -162,7 +162,11 @@ exports.search = async (req, res) => {
 
                 if (sJson.CMSearchResult) {
                     // Check pagination flags
-                    moreMatches = sJson.CMSearchResult.moreMatches === 'true';
+                    // Standard ISAPI uses 'moreMatches' boolean string
+                    // Some NVRs use 'responseStatusStrg' with value 'MORE'
+                    moreMatches = sJson.CMSearchResult.moreMatches === 'true' || 
+                                  sJson.CMSearchResult.responseStatusStrg === 'MORE';
+                    
                     // Some NVRs require checking responseStatus too
                     if (sJson.CMSearchResult.responseStatus === 'false') {
                         moreMatches = false;

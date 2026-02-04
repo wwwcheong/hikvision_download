@@ -10,6 +10,7 @@ import SearchForm from './components/SearchForm';
 import ResultsTable from './components/ResultsTable';
 import DownloadQueueMonitor from './components/DownloadQueueMonitor';
 import useDownloadQueue from './hooks/useDownloadQueue';
+import { useDownloadedLog } from './hooks/useDownloadedLog';
 
 function App() {
   const [credentials, setCredentials] = useState(null);
@@ -25,8 +26,11 @@ function App() {
   const [endDate, setEndDate] = useState(new Date());
   const [endTime, setEndTime] = useState(endOfDay(new Date()));
 
+  // Lifted Downloaded Log
+  const { addToDownloadedLog, isDownloaded } = useDownloadedLog();
+
   // Lifted Download Queue
-  const downloadState = useDownloadQueue(credentials);
+  const downloadState = useDownloadQueue(credentials, addToDownloadedLog);
 
   const handleConnect = (creds, channelList) => {
     setCredentials(creds);
@@ -111,6 +115,7 @@ function App() {
              results={results} 
              credentials={credentials}
              downloadState={downloadState}
+             isDownloaded={isDownloaded}
              onCancelAll={() => setOpenCancelDialog(true)}
            />
         </Box>

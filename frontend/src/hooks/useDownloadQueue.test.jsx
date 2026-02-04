@@ -114,29 +114,42 @@ describe('useDownloadQueue', () => {
             result.current.addToQueue([mockItem1]);
         });
 
-        expect(result.current.queue).toHaveLength(1);
-        expect(result.current.queue[0].playbackURI).toBe(mockItem1.playbackURI);
+        await waitFor(() => {
+            expect(result.current.queue).toHaveLength(1);
+            expect(result.current.queue[0].playbackURI).toBe(mockItem1.playbackURI);
+        });
+        
+        // It might transition to downloading immediately, so checking for either is fine,
+        // but we just want to ensure we waited for the update.
         expect(['pending', 'downloading']).toContain(result.current.queue[0].status);
     });
 
-    it('should prevent duplicate items in queue', async () => {
+    it('should allow duplicate items in queue', async () => {
         const { result } = renderHook(() => useDownloadQueue(credentials));
         
         act(() => {
             result.current.addToQueue([mockItem1]);
         });
         
+        // Wait for the first item to be added
+        await waitFor(() => {
+            expect(result.current.queue).toHaveLength(1);
+        });
+
         act(() => {
             result.current.addToQueue([mockItem1]);
         });
 
-        expect(result.current.queue).toHaveLength(1);
+        // Now should have 2 items
+        expect(result.current.queue).toHaveLength(2);
+        expect(result.current.queue[0].id).not.toBe(result.current.queue[1].id);
     });
 
     it('should process queue sequentially using fetch', async () => {
         axios.post.mockResolvedValue({ data: { success: true, token: 'test-token' } });
 
-        const { result } = renderHook(() => useDownloadQueue(credentials));
+        const onDownloadSuccess = vi.fn();
+        const { result } = renderHook(() => useDownloadQueue(credentials, onDownloadSuccess));
 
         act(() => {
             result.current.addToQueue([mockItem1]);
@@ -163,6 +176,11 @@ describe('useDownloadQueue', () => {
              expect(result.current.queue[0].status).toBe('completed');
              expect(result.current.isProcessing).toBe(false);
         }, { timeout: 3000 });
+
+        expect(onDownloadSuccess).toHaveBeenCalledWith(
+            expect.objectContaining({ playbackURI: mockItem1.playbackURI }),
+            credentials
+        );
     });
 
     it('should handle download errors (fetch failure)', async () => {

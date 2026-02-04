@@ -5,7 +5,7 @@ const API_URL = ''; // Relative path for now
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
 
-const useDownloadQueue = (credentials) => {
+const useDownloadQueue = (credentials, onDownloadSuccess) => {
     const [queue, setQueue] = useState(() => {
         try {
             const saved = localStorage.getItem('hik_download_queue');
@@ -36,15 +36,12 @@ const useDownloadQueue = (credentials) => {
 
     const addToQueue = (items) => {
         setQueue(prev => {
-            const existingIds = new Set(prev.map(i => i.playbackURI));
-            const newItems = items
-                .filter(item => !existingIds.has(item.playbackURI))
-                .map(item => ({
-                    ...item,
-                    id: item.playbackURI,
-                    status: 'pending',
-                    error: null
-                }));
+            const newItems = items.map(item => ({
+                ...item,
+                id: crypto.randomUUID ? crypto.randomUUID() : `${item.playbackURI}-${Date.now()}-${Math.random()}`,
+                status: 'pending',
+                error: null
+            }));
             return [...prev, ...newItems];
         });
     };
@@ -172,6 +169,11 @@ const useDownloadQueue = (credentials) => {
                     
                     // 2. Fetch with Retry and Streaming
                     await downloadWithRetry(url, fileName, setCurrentProgress, signal);
+
+                    // Mark as downloaded
+                    if (onDownloadSuccess) {
+                        onDownloadSuccess(item, credentials);
+                    }
 
                     // Mark completed
                     if (isMountedRef.current) {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
-    Paper, Button, Checkbox, Box
+    Paper, Button, Checkbox, Box, FormControlLabel
 } from '@mui/material';
 
 const formatDate = (raw) => {
@@ -21,14 +21,19 @@ const formatSize = (bytes) => {
     return `${mb}M`;
 };
 
-const ResultsTable = ({ results, downloadState }) => {
+const ResultsTable = ({ results, downloadState, credentials, isDownloaded }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [skipDownloaded, setSkipDownloaded] = useState(true);
     const { addToQueue } = downloadState;
 
     // Selection Logic
     const handleSelectAll = (event) => {
         if (event.target.checked) {
-            const allIds = new Set(results.map(r => r.playbackURI));
+            const allIds = new Set(
+                results
+                    .filter(r => !(skipDownloaded && isDownloaded(r, credentials)))
+                    .map(r => r.playbackURI)
+            );
             setSelectedIds(allIds);
         } else {
             setSelectedIds(new Set());
@@ -57,20 +62,35 @@ const ResultsTable = ({ results, downloadState }) => {
         addToQueue(itemsToDownload);
         setSelectedIds(new Set()); // Optional: clear selection after queuing
     };
+    
+    const numSelected = selectedIds.size;
+    const availableResults = results.filter(r => !(skipDownloaded && isDownloaded(r, credentials)));
+    const rowCount = availableResults.length;
+    const isSelectAllChecked = rowCount > 0 && numSelected === rowCount;
+    const isSelectAllIndeterminate = numSelected > 0 && numSelected < rowCount;
+
 
     return (
         <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
             {/* Batch Actions */}
-            <Box sx={{ flexShrink: 0, mb: 2 }}>
+            <Box sx={{ flexShrink: 0, mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Button 
                     variant="contained" 
                     color="primary" 
-                    // Fix F1: Don't disable while processing, allow queuing more
                     disabled={selectedIds.size === 0}
                     onClick={handleDownloadSelected}
                 >
                     Download Selected ({selectedIds.size})
                 </Button>
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={skipDownloaded}
+                            onChange={(e) => setSkipDownloaded(e.target.checked)}
+                        />
+                    }
+                    label="Skip downloaded files"
+                />
             </Box>
 
             <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto' }}>
@@ -79,8 +99,9 @@ const ResultsTable = ({ results, downloadState }) => {
                         <TableRow>
                             <TableCell padding="checkbox">
                                 <Checkbox
-                                    indeterminate={selectedIds.size > 0 && selectedIds.size < results.length}
-                                    checked={results.length > 0 && selectedIds.size === results.length}
+                                    data-testid="select-all-checkbox"
+                                    indeterminate={isSelectAllIndeterminate}
+                                    checked={isSelectAllChecked}
                                     onChange={handleSelectAll}
                                 />
                             </TableCell>
@@ -94,18 +115,26 @@ const ResultsTable = ({ results, downloadState }) => {
                     <TableBody>
                         {results.map((row, index) => {
                             const isRowSelected = isSelected(row.playbackURI);
+                            const isRowDownloaded = isDownloaded(row, credentials);
                             return (
                                 <TableRow 
                                     key={index} 
-                                    hover 
-                                    onClick={() => handleSelectRow(row.playbackURI)}
+                                    hover
+                                    onClick={() => (!isRowDownloaded || !skipDownloaded) && handleSelectRow(row.playbackURI)}
                                     selected={isRowSelected}
-                                    sx={{ cursor: 'pointer' }}
+                                    sx={{ 
+                                        cursor: (isRowDownloaded && skipDownloaded) ? 'not-allowed' : 'pointer',
+                                        ...(isRowDownloaded && skipDownloaded && {
+                                            backgroundColor: (theme) => theme.palette.action.disabledBackground,
+                                            color: (theme) => theme.palette.text.disabled,
+                                        }),
+                                    }}
                                 >
                                     <TableCell padding="checkbox">
                                         <Checkbox
                                             checked={isRowSelected}
-                                            onClick={(e) => e.stopPropagation()} // Handle via row click, but safeguard
+                                            disabled={isRowDownloaded && skipDownloaded}
+                                            onClick={(e) => e.stopPropagation()} 
                                             onChange={() => handleSelectRow(row.playbackURI)}
                                         />
                                     </TableCell>
@@ -117,12 +146,13 @@ const ResultsTable = ({ results, downloadState }) => {
                                         <Button 
                                             variant="outlined" 
                                             size="small" 
+                                            disabled={isRowDownloaded && skipDownloaded}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleDownloadSingle(row);
                                             }}
                                         >
-                                            Download
+                                            {isRowDownloaded ? 'Downloaded' : 'Download'}
                                         </Button>
                                     </TableCell>
                                 </TableRow>

@@ -16,6 +16,7 @@ The backend ISAPI search implementation (`backend/controllers/nvrController.js`)
 -   **Debug Script**: Executed a direct script (`backend/debug-nvr.js`) against the target NVR. Confirmed that without `searchID` reuse, it returned 1280 recordings but they were just duplicates of the first 64. With `searchID` reuse, it correctly returned 71 unique recordings, including those after 07:00 AM (e.g., 09:25 AM, 15:04 PM).
 -   **Unit Tests**: Added test cases in `backend/tests/nvr.test.js` to simulate multi-page responses (`moreMatches`, `responseStatusStrg`) and to verify that the `searchID` is correctly captured and reused.
 -   **Regression Testing**: Ran existing tests to ensure no breakage in connection or single-page search functionality.
+-   **Integration Testing**: Created and executed an end-to-end test (`frontend/tests/integration_playwright.cjs`) that launches the full application stack and interacts with the UI to search against the real NVR hardware. This test successfully verified the presence of 432 total recordings, including the specific late-day recordings for "Shop_Front28" (09:25 AM and 08:08 PM) that were previously missing.
 
 ## Files Modified
 -   `backend/services/isapiService.js`

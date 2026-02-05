@@ -90,13 +90,23 @@ const SearchForm = ({
     };
 
     return (
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2, my: 2 }}>
-            <Stack direction="row" spacing={2} alignItems="center">
+        <Box component="form" onSubmit={handleSubmit} sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 1, 
+            my: 1,
+            p: 1, 
+            border: '1px solid #f0f0f0', 
+            borderRadius: 1, 
+            backgroundColor: '#fafafa' 
+        }}>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                 <DatePicker
                     label="Start Date"
                     value={startDate}
                     onChange={(newValue) => setStartDate(newValue)}
                     disabled={disabled}
+                    slotProps={{ textField: { size: 'small', sx: { width: 150 } } }}
                 />
                 <TimePicker
                     label="Start Time"
@@ -105,12 +115,14 @@ const SearchForm = ({
                     ampm={false}
                     views={['hours', 'minutes']}
                     disabled={disabled}
+                    slotProps={{ textField: { size: 'small', sx: { width: 120 } } }}
                 />
                 <DatePicker
                     label="End Date"
                     value={endDate}
                     onChange={(newValue) => setEndDate(newValue)}
                     disabled={disabled}
+                    slotProps={{ textField: { size: 'small', sx: { width: 150 } } }}
                 />
                 <TimePicker
                     label="End Time"
@@ -119,18 +131,19 @@ const SearchForm = ({
                     ampm={false}
                     views={['hours', 'minutes']}
                     disabled={disabled}
+                    slotProps={{ textField: { size: 'small', sx: { width: 120 } } }}
                 />
                 <Button 
                     type="submit" 
                     variant="contained" 
                     disabled={!!error || disabled}
-                    size="large"
-                    sx={{ height: '56px' }}
+                    size="small"
+                    sx={{ height: '40px' }}
                 >
                     Search
                 </Button>
             </Stack>
-            {error && <Alert severity="warning">{error}</Alert>}
+            {error && <Alert severity="warning" sx={{ py: 0 }}>{error}</Alert>}
             <Snackbar
                 open={showResetMsg}
                 autoHideDuration={6000}

@@ -26,7 +26,10 @@ describe('App Integration', () => {
     axios.post.mockResolvedValueOnce({
       data: {
         success: true,
-        channels: [{ id: '1', name: 'Camera 1' }]
+        channels: [
+          { id: '1', name: 'Camera 1' },
+          { id: '2', name: 'Camera 2' }
+        ]
       }
     });
 
@@ -35,8 +38,8 @@ describe('App Integration', () => {
       data: {
         success: true,
         results: [
-          { cameraName: 'Cam1', startTime: '20230101T120000Z', endTime: '20230101T130000Z', size: 1024, playbackURI: 'uri1' },
-          { cameraName: 'Cam2', startTime: '20230101T120000Z', endTime: '20230101T130000Z', size: 1024, playbackURI: 'uri2' }
+          { cameraID: '1', cameraName: 'Camera 1', startTime: '20230101T120000Z', endTime: '20230101T130000Z', size: 1024, playbackURI: 'uri1' },
+          { cameraID: '2', cameraName: 'Camera 2', startTime: '20230101T120000Z', endTime: '20230101T130000Z', size: 1024, playbackURI: 'uri2' }
         ]
       }
     });
@@ -61,8 +64,54 @@ describe('App Integration', () => {
 
     // 3. Verify Count
     await waitFor(() => {
-      expect(screen.getByText(/Found 2 recordings/i)).toBeInTheDocument();
+      expect(screen.getByText(/Found 2 recordings, filtered to 2 recordings/i)).toBeInTheDocument();
     });
+  });
+
+  it('filters results when cameras are selected/deselected', async () => {
+    // Mock connect response with 2 cameras
+    axios.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        channels: [
+          { id: '1', name: 'Camera 1' },
+          { id: '2', name: 'Camera 2' }
+        ]
+      }
+    });
+
+    // Mock search response with results from both cameras
+    axios.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        results: [
+          { cameraID: '1', cameraName: 'Camera 1', startTime: '20230101T120000Z', endTime: '20230101T130000Z', size: 1024, playbackURI: 'uri1' },
+          { cameraID: '2', cameraName: 'Camera 2', startTime: '20230101T120000Z', endTime: '20230101T130000Z', size: 1024, playbackURI: 'uri2' }
+        ]
+      }
+    });
+
+    renderApp();
+
+    // Connect
+    fireEvent.change(screen.getByLabelText(/IP Address/i), { target: { value: '192.168.1.100' } });
+    fireEvent.change(screen.getByLabelText(/Port/i), { target: { value: '80' } });
+    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'admin' } });
+    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'password' } });
+    fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
+    await waitFor(() => expect(screen.getByText(/Connected to 192.168.1.100/i)).toBeInTheDocument());
+
+    // Search
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }));
+    await waitFor(() => expect(screen.getByText(/Found 2 recordings, filtered to 2 recordings/i)).toBeInTheDocument());
+
+    // Select None
+    fireEvent.click(screen.getByRole('button', { name: /Select None/i }));
+    expect(screen.getByText(/Found 2 recordings, filtered to 0 recordings/i)).toBeInTheDocument();
+
+    // Select All
+    fireEvent.click(screen.getByRole('button', { name: /Select All/i }));
+    expect(screen.getByText(/Found 2 recordings, filtered to 2 recordings/i)).toBeInTheDocument();
   });
 
   it('displays "Found 0 recordings" when no results found', async () => {
@@ -100,7 +149,7 @@ describe('App Integration', () => {
 
     // Verify Count 0
     await waitFor(() => {
-      expect(screen.getByText(/Found 0 recordings/i)).toBeInTheDocument();
+      expect(screen.getByText(/Found 0 recordings, filtered to 0 recordings/i)).toBeInTheDocument();
     });
   });
 

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 const nvrRoutes = require('./routes/nvrRoutes');
 
@@ -14,9 +15,23 @@ app.use(express.json());
 
 app.use('/api', nvrRoutes);
 
-app.get('/health', (req, res) => {
+const healthHandler = (req, res) => {
   res.json({ status: 'ok' });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
+
+// Serve static assets in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: '1d'
+  }));
+
+  app.get(/.*/, (req, res) => {
+    res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
+  });
+}
 
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {

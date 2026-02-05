@@ -287,4 +287,47 @@ describe('useDownloadQueue', () => {
         expect(['pending', 'downloading']).toContain(result.current.queue[0].status);
         expect(result.current.queue[0].error).toBeNull();
     });
+
+    it('should clear completed items from queue', async () => {
+        const { result } = renderHook(() => useDownloadQueue(credentials));
+
+        // 1. Add item and wait for completion
+        act(() => {
+            result.current.addToQueue([mockItem1]);
+        });
+
+        await waitFor(() => {
+            expect(result.current.queue[0].status).toBe('completed');
+        });
+
+        // 2. Add another item that fails
+        // Use mockRejectedValue to ensure all retries fail.
+        // This persists until test ends (restored in afterEach), which is fine as we want this item to fail.
+        fetchSpy.mockRejectedValue(new Error('Network Error'));
+
+        const mockItem2 = { ...mockItem1, playbackURI: 'rtsp://test/2' };
+        
+        act(() => {
+            result.current.addToQueue([mockItem2]);
+        });
+        
+        await waitFor(() => {
+             // Wait for it to fail
+             const item2 = result.current.queue.find(i => i.playbackURI === mockItem2.playbackURI);
+             expect(item2?.status).toBe('error');
+        }, { timeout: 8000 });
+
+        expect(result.current.queue).toHaveLength(2);
+        expect(result.current.queue.find(i => i.status === 'completed')).toBeDefined();
+        expect(result.current.queue.find(i => i.status === 'error')).toBeDefined();
+
+        // 3. Clear completed
+        act(() => {
+            result.current.clearCompleted();
+        });
+
+        expect(result.current.queue).toHaveLength(1);
+        expect(result.current.queue[0].playbackURI).toBe(mockItem2.playbackURI);
+        expect(result.current.queue[0].status).toBe('error');
+    }, 10000);
 });

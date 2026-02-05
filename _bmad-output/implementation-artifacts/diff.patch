@@ -1,0 +1,171 @@
+diff --git a/frontend/src/components/DownloadQueueMonitor.jsx b/frontend/src/components/DownloadQueueMonitor.jsx
+index b21fe0b..ff57412 100644
+--- a/frontend/src/components/DownloadQueueMonitor.jsx
++++ b/frontend/src/components/DownloadQueueMonitor.jsx
+@@ -5,6 +5,7 @@ const UI_STRINGS = {
+     BATCH_STATUS: 'Batch Status:',
+     DOWNLOADING: 'Downloading:',
+     CANCEL_ALL: 'Cancel All',
++    CLEAR_COMPLETED: 'Clear Completed',
+     RETRY_FAILED: 'Retry Failed',
+     FAILED_DOWNLOADS: 'failed downloads',
+     UNKNOWN_ERROR: 'Unknown error',
+@@ -14,7 +15,7 @@ const UI_STRINGS = {
+ };
+ 
+ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
+-    const { queue, retryFailed, isProcessing, currentProgress, currentFileName } = downloadState;
++    const { queue, retryFailed, clearCompleted, isProcessing, currentProgress, currentFileName } = downloadState;
+ 
+     // F1: Use useMemo for stats calculation to prevent redundant array iterations
+     const stats = useMemo(() => {
+@@ -45,13 +46,25 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
+     return (
+         <Box sx={{ flexShrink: 0, mb: 2, width: '100%' }}>
+             <Stack direction="row" spacing={2} alignItems="flex-start">
+-                <Button
+-                    variant="outlined"
+-                    color="error"
+-                    onClick={onCancelAll}
+-                >
+-                    {UI_STRINGS.CANCEL_ALL}
+-                </Button>
++                <Stack spacing={1}>
++                    <Button
++                        variant="outlined"
++                        color="error"
++                        onClick={onCancelAll}
++                    >
++                        {UI_STRINGS.CANCEL_ALL}
++                    </Button>
++                    {stats.completed > 0 && (
++                        <Button
++                            variant="outlined"
++                            color="success"
++                            onClick={clearCompleted}
++                            size="small"
++                        >
++                            {UI_STRINGS.CLEAR_COMPLETED}
++                        </Button>
++                    )}
++                </Stack>
+                 
+                 <Stack spacing={1} sx={{ flexGrow: 1 }}>
+                     <Box>
+diff --git a/frontend/src/hooks/useDownloadQueue.js b/frontend/src/hooks/useDownloadQueue.js
+index d189503..f55c04e 100644
+--- a/frontend/src/hooks/useDownloadQueue.js
++++ b/frontend/src/hooks/useDownloadQueue.js
+@@ -148,8 +148,8 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
+             const item = queue[pendingIndex];
+ 
+             // Update status to downloading
+-            setQueue(prev => prev.map((qItem, idx) => 
+-                idx === pendingIndex ? { ...qItem, status: 'downloading' } : qItem
++            setQueue(prev => prev.map(qItem => 
++                qItem.id === item.id ? { ...qItem, status: 'downloading' } : qItem
+             ));
+ 
+             try {
+@@ -177,8 +177,8 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
+ 
+                     // Mark completed
+                     if (isMountedRef.current) {
+-                        setQueue(prev => prev.map((qItem, idx) => 
+-                            idx === pendingIndex ? { ...qItem, status: 'completed' } : qItem
++                        setQueue(prev => prev.map(qItem => 
++                            qItem.id === item.id ? { ...qItem, status: 'completed' } : qItem
+                         ));
+                     }
+                 } else {
+@@ -190,8 +190,8 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
+                 } else {
+                     console.error('Download error:', error);
+                     if (isMountedRef.current) {
+-                        setQueue(prev => prev.map((qItem, idx) => 
+-                            idx === pendingIndex ? { ...qItem, status: 'error', error: error.message } : qItem
++                        setQueue(prev => prev.map(qItem => 
++                            qItem.id === item.id ? { ...qItem, status: 'error', error: error.message } : qItem
+                         ));
+                     }
+                 }
+@@ -220,6 +220,10 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
+         ));
+     }, []);
+ 
++    const clearCompleted = useCallback(() => {
++        setQueue(prev => prev.filter(item => item.status !== 'completed'));
++    }, []);
++
+     const cancelAll = useCallback(() => {
+         // 1. Abort active request
+         if (abortControllerRef.current) {
+@@ -239,6 +243,7 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
+         queue,
+         addToQueue,
+         retryFailed,
++        clearCompleted,
+         cancelAll,
+         isProcessing,
+         currentProgress,
+diff --git a/frontend/src/hooks/useDownloadQueue.test.jsx b/frontend/src/hooks/useDownloadQueue.test.jsx
+index 9094947..57b202f 100644
+--- a/frontend/src/hooks/useDownloadQueue.test.jsx
++++ b/frontend/src/hooks/useDownloadQueue.test.jsx
+@@ -287,4 +287,55 @@ describe('useDownloadQueue', () => {
+         expect(['pending', 'downloading']).toContain(result.current.queue[0].status);
+         expect(result.current.queue[0].error).toBeNull();
+     });
++
++    it('should clear completed items from queue', async () => {
++        const { result } = renderHook(() => useDownloadQueue(credentials));
++
++        // 1. Add item and wait for completion
++        act(() => {
++            result.current.addToQueue([mockItem1]);
++        });
++
++        await waitFor(() => {
++            expect(result.current.queue[0].status).toBe('completed');
++        });
++
++        // 2. Add another item that fails (we need to make sure fetch fails for the second item)
++        // Since the first one succeeded (3 calls to fetch/stream), we need to mock failure for subsequent calls
++        // or just rely on the first one being completed.
++        // Let's simpler: Just set the first one to completed.
++        
++        // Actually, let's just use the existing behavior.
++        // First one completes.
++        
++        // Now add a second one. We want this one to NOT be completed.
++        // We can make fetch stall or fail. Let's make it fail for the second one.
++        // Reset mocks to ensure clean state for second item
++        fetchSpy.mockRejectedValue(new Error('Network Error'));
++
++        const mockItem2 = { ...mockItem1, playbackURI: 'rtsp://test/2' };
++        
++        act(() => {
++            result.current.addToQueue([mockItem2]);
++        });
++        
++        await waitFor(() => {
++             // Wait for it to fail
++             const item2 = result.current.queue.find(i => i.playbackURI === mockItem2.playbackURI);
++             expect(item2?.status).toBe('error');
++        }, { timeout: 5000 });
++
++        expect(result.current.queue).toHaveLength(2);
++        expect(result.current.queue.find(i => i.status === 'completed')).toBeDefined();
++        expect(result.current.queue.find(i => i.status === 'error')).toBeDefined();
++
++        // 3. Clear completed
++        act(() => {
++            result.current.clearCompleted();
++        });
++
++        expect(result.current.queue).toHaveLength(1);
++        expect(result.current.queue[0].playbackURI).toBe(mockItem2.playbackURI);
++        expect(result.current.queue[0].status).toBe('error');
++    });
+ });
+\ No newline at end of file

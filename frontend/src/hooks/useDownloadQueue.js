@@ -148,8 +148,8 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
             const item = queue[pendingIndex];
 
             // Update status to downloading
-            setQueue(prev => prev.map((qItem, idx) => 
-                idx === pendingIndex ? { ...qItem, status: 'downloading' } : qItem
+            setQueue(prev => prev.map(queueItem => 
+                queueItem.id === item.id ? { ...queueItem, status: 'downloading' } : queueItem
             ));
 
             try {
@@ -177,8 +177,8 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
 
                     // Mark completed
                     if (isMountedRef.current) {
-                        setQueue(prev => prev.map((qItem, idx) => 
-                            idx === pendingIndex ? { ...qItem, status: 'completed' } : qItem
+                        setQueue(prev => prev.map(queueItem => 
+                            queueItem.id === item.id ? { ...queueItem, status: 'completed' } : queueItem
                         ));
                     }
                 } else {
@@ -190,8 +190,8 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
                 } else {
                     console.error('Download error:', error);
                     if (isMountedRef.current) {
-                        setQueue(prev => prev.map((qItem, idx) => 
-                            idx === pendingIndex ? { ...qItem, status: 'error', error: error.message } : qItem
+                        setQueue(prev => prev.map(queueItem => 
+                            queueItem.id === item.id ? { ...queueItem, status: 'error', error: error.message } : queueItem
                         ));
                     }
                 }
@@ -220,6 +220,14 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
         ));
     }, []);
 
+    /**
+     * Removes all items with status 'completed' from the queue.
+     * Keeps 'pending', 'downloading', and 'error' items.
+     */
+    const clearCompleted = useCallback(() => {
+        setQueue(prev => prev.filter(item => item.status !== 'completed'));
+    }, []);
+
     const cancelAll = useCallback(() => {
         // 1. Abort active request
         if (abortControllerRef.current) {
@@ -239,6 +247,7 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
         queue,
         addToQueue,
         retryFailed,
+        clearCompleted,
         cancelAll,
         isProcessing,
         currentProgress,

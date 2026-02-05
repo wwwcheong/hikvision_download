@@ -5,6 +5,7 @@ const UI_STRINGS = {
     BATCH_STATUS: 'Batch Status:',
     DOWNLOADING: 'Downloading:',
     CANCEL_ALL: 'Cancel All',
+    CLEAR_COMPLETED: 'Clear Completed',
     RETRY_FAILED: 'Retry Failed',
     FAILED_DOWNLOADS: 'failed downloads',
     UNKNOWN_ERROR: 'Unknown error',
@@ -14,7 +15,7 @@ const UI_STRINGS = {
 };
 
 const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
-    const { queue, retryFailed, isProcessing, currentProgress, currentFileName } = downloadState;
+    const { queue, retryFailed, clearCompleted, isProcessing, currentProgress, currentFileName } = downloadState;
 
     // F1: Use useMemo for stats calculation to prevent redundant array iterations
     const stats = useMemo(() => {
@@ -45,13 +46,24 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
     return (
         <Box sx={{ flexShrink: 0, mb: 2, width: '100%' }}>
             <Stack direction="row" spacing={2} alignItems="flex-start">
-                <Button
-                    variant="outlined"
-                    color="error"
-                    onClick={onCancelAll}
-                >
-                    {UI_STRINGS.CANCEL_ALL}
-                </Button>
+                <Stack spacing={1}>
+                    <Button
+                        variant="outlined"
+                        color="error"
+                        onClick={onCancelAll}
+                    >
+                        {UI_STRINGS.CANCEL_ALL}
+                    </Button>
+                    {stats.completed > 0 && (
+                        <Button
+                            variant="outlined"
+                            color="success"
+                            onClick={clearCompleted}
+                        >
+                            {UI_STRINGS.CLEAR_COMPLETED}
+                        </Button>
+                    )}
+                </Stack>
                 
                 <Stack spacing={1} sx={{ flexGrow: 1 }}>
                     <Box>

@@ -309,6 +309,57 @@ describe('NVR Backend API', () => {
             expect(res.body.results).toHaveLength(2);
             expect(mockClient.fetch).toHaveBeenCalledTimes(3);
         });
+
+        it('should reuse searchID for subsequent pagination requests', async () => {
+            const mockClient = {
+                fetch: jest.fn().mockImplementation((url) => {
+                    if (url.includes('channels')) {
+                         return Promise.resolve({ ok: true, text: () => Promise.resolve('<xml>channels</xml>') });
+                    }
+                    if (url.includes('search')) {
+                         return Promise.resolve({ ok: true, text: () => Promise.resolve('<xml>search_response</xml>') });
+                    }
+                    return Promise.reject(new Error('Unknown URL'));
+                })
+            };
+            isapiService.createClient.mockReturnValue(mockClient);
+
+            isapiService.parseXml
+                .mockResolvedValueOnce({
+                    InputProxyChannelList: { InputProxyChannel: [{ id: '1', name: 'Camera 1' }] }
+                })
+                .mockResolvedValueOnce({
+                    CMSearchResult: {
+                        searchID: 'test-uuid-123',
+                        moreMatches: 'true',
+                        matchList: { searchMatchItem: [{ mediaSegmentDescriptor: { playbackURI: 'rtsp://video1' } }] }
+                    }
+                })
+                .mockResolvedValueOnce({
+                    CMSearchResult: {
+                        searchID: 'test-uuid-123',
+                        moreMatches: 'false',
+                        matchList: { searchMatchItem: [{ mediaSegmentDescriptor: { playbackURI: 'rtsp://video2' } }] }
+                    }
+                });
+            
+            isapiService.buildSearchXml.mockReturnValue('<xml>search</xml>');
+
+            await request(app)
+                .post('/api/search')
+                .send({
+                    ip: '192.168.1.100',
+                    username: 'admin',
+                    password: 'password',
+                    startTime: '2023-01-01T00:00:00Z',
+                    endTime: '2023-01-01T23:59:59Z'
+                });
+
+            // Verify buildSearchXml was called with the searchID from the first response for the second batch
+            expect(isapiService.buildSearchXml).toHaveBeenCalledWith(expect.objectContaining({
+                searchID: 'test-uuid-123'
+            }));
+        });
     });
 
     describe('GET /api/download', () => {

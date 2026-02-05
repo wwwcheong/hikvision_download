@@ -133,6 +133,7 @@ exports.search = async (req, res) => {
             let position = 0;
             let moreMatches = true;
             let loopCount = 0;
+            let searchID = null;
             const MAX_LOOPS = 50; // Safety break to prevent infinite loops
 
             while (moreMatches && loopCount < MAX_LOOPS) {
@@ -142,7 +143,8 @@ exports.search = async (req, res) => {
                     startTime: start.toISOString(), // Ensure strict ISO format (Z)
                     endTime: end.toISOString(),
                     maxResults: 100, // Safe batch size
-                    position: position
+                    position: position,
+                    searchID: searchID
                 });
                 
                 const searchRes = await client.fetch(`${baseUrl}/ISAPI/ContentMgmt/search`, {
@@ -161,6 +163,13 @@ exports.search = async (req, res) => {
                 let batchCount = 0;
 
                 if (sJson.CMSearchResult) {
+                    // Capture searchID from first response to reuse in subsequent pages
+                    if (!searchID && sJson.CMSearchResult.searchID) {
+                        searchID = sJson.CMSearchResult.searchID;
+                        // Some NVRs return searchID wrapped in braces {uuid}, clean them if present
+                        searchID = searchID.replace(/[{}]/g, '');
+                    }
+
                     // Check pagination flags
                     // Standard ISAPI uses 'moreMatches' boolean string
                     // Some NVRs use 'responseStatusStrg' with value 'MORE'

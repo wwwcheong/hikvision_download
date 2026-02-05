@@ -18,12 +18,12 @@ const parseXml = async (xmlString) => {
     }
 };
 
-const buildSearchXml = ({ trackID, startTime, endTime, position = 0, maxResults = 100 }) => {
-    const searchID = crypto.randomUUID();
+const buildSearchXml = ({ trackID, startTime, endTime, position = 0, maxResults = 100, searchID }) => {
+    const id = searchID || crypto.randomUUID();
 
     const obj = {
         CMSearchDescription: {
-            searchID: searchID,
+            searchID: id,
             trackList: {
                 trackID: trackID
             },

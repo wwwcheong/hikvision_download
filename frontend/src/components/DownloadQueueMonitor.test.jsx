@@ -59,16 +59,41 @@ describe('DownloadQueueMonitor', () => {
     it('renders error message and retry button when errors exist', () => {
         const state = {
             ...baseState,
-            queue: [{ status: 'error', id: 1, cameraName: 'Cam1', error: 'Network Error' }]
+            queue: [{ 
+                status: 'error', 
+                id: 1, 
+                cameraName: 'Cam1', 
+                error: 'Network Error',
+                startTime: '20260205T100000',
+                endTime: '20260205T110000'
+            }]
         };
         render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
         
         expect(screen.getByText(/1 failed downloads/i)).toBeInTheDocument();
-        expect(screen.getByText(/Cam1: Network Error/i)).toBeInTheDocument();
+        // Check for formatted dates: 2026-02-05 10:00:00 and 2026-02-05 11:00:00
+        expect(screen.getByText(/Cam1 \(2026-02-05 10:00:00 - 2026-02-05 11:00:00\): Network Error/i)).toBeInTheDocument();
         
         const retryBtn = screen.getByRole('button', { name: /Retry Failed/i });
         fireEvent.click(retryBtn);
         expect(mockRetryFailed).toHaveBeenCalled();
+    });
+
+    it('renders error message correctly when dates are missing', () => {
+        const state = {
+            ...baseState,
+            queue: [{ 
+                status: 'error', 
+                id: 1, 
+                cameraName: 'Cam1', 
+                error: 'Network Error'
+                // missing startTime/endTime
+            }]
+        };
+        render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
+        
+        // Should show "Cam1: Network Error" without brackets
+        expect(screen.getByText(/Cam1: Network Error/i)).toBeInTheDocument();
     });
 
     it('calls onCancelAll when Cancel All is clicked', () => {

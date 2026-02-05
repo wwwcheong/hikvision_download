@@ -3,17 +3,7 @@ import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
     Paper, Button, Checkbox, Box, FormControlLabel
 } from '@mui/material';
-
-const formatDate = (raw) => {
-    if (!raw || raw.length < 15) return raw;
-    const y = raw.substring(0, 4);
-    const m = raw.substring(4, 6);
-    const d = raw.substring(6, 8);
-    const h = raw.substring(9, 11);
-    const min = raw.substring(11, 13);
-    const s = raw.substring(13, 15);
-    return `${y}-${m}-${d} ${h}:${min}:${s}`;
-};
+import { formatDate } from '../utils/dateUtils';
 
 const formatSize = (bytes) => {
     if (!bytes) return '-';

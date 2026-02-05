@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box, Stack, Button, Typography, LinearProgress } from '@mui/material';
+import { formatDate } from '../utils/dateUtils';
 
 const UI_STRINGS = {
     BATCH_STATUS: 'Batch Status:',
@@ -101,11 +102,16 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
                                 {UI_STRINGS.RETRY_FAILED}
                             </Button>
                             <Box sx={{ maxHeight: 60, overflowY: 'auto', width: '100%' }}>
-                                {stats.failedItems.map((item, idx) => (
-                                    <Typography key={idx} variant="caption" display="block" color="error">
-                                        {item.cameraName}: {item.error || UI_STRINGS.UNKNOWN_ERROR}
-                                    </Typography>
-                                ))}
+                                {stats.failedItems.map((item, idx) => {
+                                    const timeRange = (item.startTime && item.endTime) 
+                                        ? ` (${formatDate(item.startTime)} - ${formatDate(item.endTime)})`
+                                        : '';
+                                    return (
+                                        <Typography key={idx} variant="caption" display="block" color="error">
+                                            {item.cameraName}{timeRange}: {item.error || UI_STRINGS.UNKNOWN_ERROR}
+                                        </Typography>
+                                    );
+                                })}
                             </Box>
                         </Stack>
                     )}

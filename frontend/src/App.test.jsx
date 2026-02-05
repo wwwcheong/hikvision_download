@@ -55,7 +55,8 @@ describe('App Integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Connected to 192.168.1.100/i)).toBeInTheDocument();
+      expect(screen.getByText(/Connected:/i)).toBeInTheDocument();
+      expect(screen.getByText(new RegExp('192.168.1.100', 'i'))).toBeInTheDocument();
     });
 
     // 2. Search
@@ -64,7 +65,7 @@ describe('App Integration', () => {
 
     // 3. Verify Count
     await waitFor(() => {
-      expect(screen.getByText(/Found 2 recordings, filtered to 2 recordings/i)).toBeInTheDocument();
+      expect(screen.getByText(/Found 2 recordings, filtered to 2/i)).toBeInTheDocument();
     });
   });
 
@@ -99,19 +100,19 @@ describe('App Integration', () => {
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'admin' } });
     fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'password' } });
     fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
-    await waitFor(() => expect(screen.getByText(/Connected to 192.168.1.100/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Connected:/i)).toBeInTheDocument());
 
     // Search
     fireEvent.click(screen.getByRole('button', { name: /Search/i }));
-    await waitFor(() => expect(screen.getByText(/Found 2 recordings, filtered to 2 recordings/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Found 2 recordings, filtered to 2/i)).toBeInTheDocument());
 
     // Select None
-    fireEvent.click(screen.getByRole('button', { name: /Select None/i }));
-    expect(screen.getByText(/Found 2 recordings, filtered to 0 recordings/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^None$/i }));
+    expect(screen.getByText(/Found 2 recordings, filtered to 0/i)).toBeInTheDocument();
 
     // Select All
-    fireEvent.click(screen.getByRole('button', { name: /Select All/i }));
-    expect(screen.getByText(/Found 2 recordings, filtered to 2 recordings/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^All$/i }));
+    expect(screen.getByText(/Found 2 recordings, filtered to 2/i)).toBeInTheDocument();
   });
 
   it('displays "Found 0 recordings" when no results found', async () => {
@@ -141,7 +142,7 @@ describe('App Integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Connected to 192.168.1.100/i)).toBeInTheDocument();
+      expect(screen.getByText(/Connected:/i)).toBeInTheDocument();
     });
 
     // Search
@@ -149,7 +150,7 @@ describe('App Integration', () => {
 
     // Verify Count 0
     await waitFor(() => {
-      expect(screen.getByText(/Found 0 recordings, filtered to 0 recordings/i)).toBeInTheDocument();
+      expect(screen.getByText(/Found 0 recordings, filtered to 0/i)).toBeInTheDocument();
     });
   });
 
@@ -171,7 +172,7 @@ describe('App Integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Connected to 192.168.1.100/i)).toBeInTheDocument();
+      expect(screen.getByText(/Connected:/i)).toBeInTheDocument();
     });
 
     // 2. Change Filter

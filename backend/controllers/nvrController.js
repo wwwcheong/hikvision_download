@@ -297,7 +297,20 @@ exports.download = async (req, res) => {
             res.setHeader('Content-Length', contentLength);
         }
 
-        Readable.fromWeb(response.body).pipe(res);
+        const nodeStream = Readable.fromWeb(response.body);
+        
+        nodeStream.on('error', (err) => {
+            console.error('Download stream error:', err);
+            // If the stream errors (e.g. content-length mismatch), we prevent the app from crashing.
+            // If headers are already sent, destroying the res stream is the best we can do.
+            if (!res.headersSent) {
+                 res.status(500).send('Download stream failed');
+            } else {
+                 res.destroy();
+            }
+        });
+
+        nodeStream.pipe(res);
         
     } catch (error) {
         console.error('Download Error:', error);

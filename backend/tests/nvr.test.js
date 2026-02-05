@@ -422,5 +422,47 @@ describe('NVR Backend API', () => {
             const body = calledOptions.body;
             expect(body).toBe('<downloadRequest>...</downloadRequest>');
         });
+
+        it('should handle download stream errors gracefully', async () => {
+            // Create a Web Stream that errors out
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(Buffer.from('some data'));
+                    controller.error(new Error('UND_ERR_RES_CONTENT_LENGTH_MISMATCH'));
+                }
+            });
+
+            const mockClient = {
+                fetch: jest.fn().mockResolvedValue({
+                    ok: true,
+                    status: 200,
+                    headers: { get: () => '1000' }, // Large content length
+                    body: stream
+                })
+            };
+            isapiService.createClient.mockReturnValue(mockClient);
+
+            // 1. Get Token
+            const tokenRes = await request(app)
+                .post('/api/download-token')
+                .send({
+                    ip: '192.168.1.100',
+                    username: 'admin',
+                    password: 'password',
+                    playbackURI: 'uri'
+                });
+            
+            const token = tokenRes.body.token;
+
+            // 2. Download - it might return 200 then fail, or 500 depending on timing.
+            // The key is that the process MUST NOT crash.
+            const res = await request(app)
+                .get(`/api/download?token=${token}`);
+
+            // If it fails immediately it returns 500 (from our handler)
+            // If it fails during streaming, supertest might see 200 but partial data.
+            // We just want to ensure it completes without crashing the test runner.
+            expect([200, 500]).toContain(res.statusCode);
+        });
     });
 });

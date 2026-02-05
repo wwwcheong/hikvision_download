@@ -203,8 +203,12 @@ exports.search = async (req, res) => {
                                     if (sizeMatch) size = sizeMatch[1];
                                 }
 
+                                // Some NVRs return trackID in the search result item
+                                const resultTrackID = m.trackID || trackID;
+
                                 results.push({
-                                    cameraName: channelMap[trackID] || `Camera ${trackID}`,
+                                    cameraID: resultTrackID,
+                                    cameraName: channelMap[resultTrackID] || channelMap[trackID] || `Camera ${resultTrackID}`,
                                     startTime: startTime,
                                     endTime: endTime,
                                     size: size,

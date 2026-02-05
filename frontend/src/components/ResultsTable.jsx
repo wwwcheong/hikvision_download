@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
-    Paper, Button, Checkbox, Box, FormControlLabel
+    Paper, Button, Checkbox, Box, FormControlLabel, Typography
 } from '@mui/material';
 import { formatDate } from '../utils/dateUtils';
 
@@ -11,23 +11,22 @@ const formatSize = (bytes) => {
     return `${mb}M`;
 };
 
-const ResultsTable = ({ results, downloadState, credentials, isDownloaded }) => {
+const ResultsTable = ({ results, totalCount, downloadState, credentials, isDownloaded }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [skipDownloaded, setSkipDownloaded] = useState(true);
     const { addToQueue } = downloadState;
 
     // Selection Logic
     const handleSelectAll = (event) => {
+        const newSelected = new Set(selectedIds);
+        const visibleAvailableResults = results.filter(r => !(skipDownloaded && isDownloaded(r, credentials)));
+        
         if (event.target.checked) {
-            const allIds = new Set(
-                results
-                    .filter(r => !(skipDownloaded && isDownloaded(r, credentials)))
-                    .map(r => r.playbackURI)
-            );
-            setSelectedIds(allIds);
+            visibleAvailableResults.forEach(r => newSelected.add(r.playbackURI));
         } else {
-            setSelectedIds(new Set());
+            visibleAvailableResults.forEach(r => newSelected.delete(r.playbackURI));
         }
+        setSelectedIds(newSelected);
     };
 
     const handleSelectRow = (playbackURI) => {
@@ -50,41 +49,51 @@ const ResultsTable = ({ results, downloadState, credentials, isDownloaded }) => 
     const handleDownloadSelected = () => {
         const itemsToDownload = results.filter(r => selectedIds.has(r.playbackURI));
         addToQueue(itemsToDownload);
-        setSelectedIds(new Set()); // Optional: clear selection after queuing
+        
+        // Only clear the ones we actually queued
+        const newSelected = new Set(selectedIds);
+        itemsToDownload.forEach(item => newSelected.delete(item.playbackURI));
+        setSelectedIds(newSelected);
     };
     
-    const numSelected = selectedIds.size;
+    const numSelected = Array.from(selectedIds).filter(id => results.some(r => r.playbackURI === id)).length;
     const availableResults = results.filter(r => !(skipDownloaded && isDownloaded(r, credentials)));
     const rowCount = availableResults.length;
-    const isSelectAllChecked = rowCount > 0 && numSelected === rowCount;
-    const isSelectAllIndeterminate = numSelected > 0 && numSelected < rowCount;
+    const isSelectAllChecked = rowCount > 0 && availableResults.every(r => selectedIds.has(r.playbackURI));
+    const isSelectAllIndeterminate = !isSelectAllChecked && availableResults.some(r => selectedIds.has(r.playbackURI));
 
 
     return (
-        <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
+        <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
             {/* Batch Actions */}
-            <Box sx={{ flexShrink: 0, mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ flexShrink: 0, mb: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Button 
                     variant="contained" 
                     color="primary" 
-                    disabled={selectedIds.size === 0}
+                    disabled={numSelected === 0}
                     onClick={handleDownloadSelected}
+                    size="small"
                 >
-                    Download Selected ({selectedIds.size})
+                    Download Selected ({numSelected})
                 </Button>
                 <FormControlLabel
                     control={
                         <Checkbox
                             checked={skipDownloaded}
                             onChange={(e) => setSkipDownloaded(e.target.checked)}
+                            size="small"
                         />
                     }
-                    label="Skip downloaded files"
+                    label={<Typography variant="body2">Skip downloaded files</Typography>}
                 />
+                <Box sx={{ flexGrow: 1 }} />
+                <Typography variant="caption" color="text.secondary">
+                    Found {totalCount} recordings, filtered to {results.length}
+                </Typography>
             </Box>
 
             <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto' }}>
-                <Table stickyHeader>
+                <Table stickyHeader size="small">
                     <TableHead>
                         <TableRow>
                             <TableCell padding="checkbox">
@@ -95,20 +104,20 @@ const ResultsTable = ({ results, downloadState, credentials, isDownloaded }) => 
                                     onChange={handleSelectAll}
                                 />
                             </TableCell>
-                            <TableCell>Camera</TableCell>
-                            <TableCell>Start Time</TableCell>
-                            <TableCell>End Time</TableCell>
-                            <TableCell>Size</TableCell>
-                            <TableCell>Action</TableCell>
+                            <TableCell sx={{ py: 0.5 }}>Camera</TableCell>
+                            <TableCell sx={{ py: 0.5 }}>Start Time</TableCell>
+                            <TableCell sx={{ py: 0.5 }}>End Time</TableCell>
+                            <TableCell sx={{ py: 0.5 }}>Size</TableCell>
+                            <TableCell sx={{ py: 0.5 }}>Action</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {results.map((row, index) => {
+                        {results.map((row) => {
                             const isRowSelected = isSelected(row.playbackURI);
                             const isRowDownloaded = isDownloaded(row, credentials);
                             return (
                                 <TableRow 
-                                    key={index} 
+                                    key={row.playbackURI} 
                                     hover
                                     onClick={() => (!isRowDownloaded || !skipDownloaded) && handleSelectRow(row.playbackURI)}
                                     selected={isRowSelected}
@@ -128,15 +137,16 @@ const ResultsTable = ({ results, downloadState, credentials, isDownloaded }) => 
                                             onChange={() => handleSelectRow(row.playbackURI)}
                                         />
                                     </TableCell>
-                                    <TableCell>{row.cameraName}</TableCell>
-                                    <TableCell>{formatDate(row.startTime)}</TableCell>
-                                    <TableCell>{formatDate(row.endTime)}</TableCell>
-                                    <TableCell>{formatSize(row.size)}</TableCell>
-                                    <TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>{row.cameraName}</TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>{formatDate(row.startTime)}</TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>{formatDate(row.endTime)}</TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>{formatSize(row.size)}</TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>
                                         <Button 
                                             variant="outlined" 
                                             size="small" 
                                             disabled={isRowDownloaded && skipDownloaded}
+                                            sx={{ py: 0, minHeight: '30px' }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleDownloadSingle(row);

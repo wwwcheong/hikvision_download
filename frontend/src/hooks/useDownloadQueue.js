@@ -146,19 +146,43 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
 
     const downloadWithRetry = async (url, fileName, setProgress, signal, attempt = 0) => {
         try {
-            const response = await axios.get(url, {
-                signal,
-                responseType: 'blob',
-                onDownloadProgress: (progressEvent) => {
-                    if (progressEvent.total) {
-                        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            const response = await fetch(url, { signal });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const contentLength = response.headers.get('Content-Length');
+            const total = contentLength ? parseInt(contentLength, 10) : 0;
+            let loaded = 0;
+
+            const reader = response.body.getReader();
+            const chunks = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (value) {
+                    chunks.push(value);
+                    loaded += value.length;
+
+                    if (total) {
+                        const percent = Math.round((loaded * 100) / total);
                         setProgress(percent);
+                        
+                        // Force close if we have received enough data
+                        if (loaded >= total) {
+                            await reader.cancel();
+                            break;
+                        }
                     }
                 }
-            });
+                
+                if (done) break;
+            }
 
             // Create Blob and save
-            const blob = new Blob([response.data]);
+            const blob = new Blob(chunks);
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = blobUrl;
@@ -171,7 +195,7 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
             return true;
 
         } catch (error) {
-            if (axios.isCancel(error) || error.name === 'AbortError') {
+            if (error.name === 'AbortError') {
                 throw error; // Don't retry if aborted
             }
 

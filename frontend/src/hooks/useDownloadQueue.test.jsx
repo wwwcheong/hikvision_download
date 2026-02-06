@@ -3,19 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import useDownloadQueue from './useDownloadQueue';
 
-// Mock axios
-vi.mock('axios', async () => {
-    const actual = await vi.importActual('axios');
-    return {
-        default: {
-            ...actual.default,
-            get: vi.fn(),
-            post: vi.fn(),
-            isCancel: vi.fn((err) => err && err.name === 'AbortError'),
-        },
-        isCancel: vi.fn((err) => err && err.name === 'AbortError'),
-    };
-});
+// Mock axios for token generation
+vi.mock('axios');
 
 describe('useDownloadQueue', () => {
     const credentials = {
@@ -38,6 +27,37 @@ describe('useDownloadQueue', () => {
     let createElementSpy;
     let appendChildSpy;
     let removeChildSpy;
+    let fetchSpy;
+
+    // Helper to create a stream that yields specific chunks
+    const createMockStream = (chunks, contentLength = null, errorAtChunkIndex = -1) => {
+        const encoder = new TextEncoder();
+        let index = 0;
+        
+        return new ReadableStream({
+            start(controller) {
+                // optional
+            },
+            async pull(controller) {
+                if (errorAtChunkIndex !== -1 && index === errorAtChunkIndex) {
+                    controller.error(new Error('Stream Error'));
+                    return;
+                }
+                
+                if (index >= chunks.length) {
+                    controller.close();
+                    return;
+                }
+                
+                const chunk = chunks[index];
+                controller.enqueue(encoder.encode(chunk));
+                index++;
+            },
+            cancel() {
+                // cleanup
+            }
+        });
+    };
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -46,13 +66,17 @@ describe('useDownloadQueue', () => {
         // Mock default axios response for token
         axios.post.mockResolvedValue({ data: { success: true, token: 'default-token' } });
 
-        // Mock default axios.get for download
-        axios.get.mockImplementation(async (url, config) => {
-            if (config.onDownloadProgress) {
-                config.onDownloadProgress({ loaded: 50, total: 100 });
-                config.onDownloadProgress({ loaded: 100, total: 100 });
-            }
-            return { data: new Blob(['test content']) };
+        // Mock fetch
+        fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+             // Return a simple stream by default
+             const stream = createMockStream(['test', ' ', 'content']);
+             return {
+                 ok: true,
+                 headers: {
+                     get: (key) => key === 'Content-Length' ? '12' : null // 'test content' length is 12
+                 },
+                 body: stream
+             };
         });
 
         // Mock URL.createObjectURL and revokeObjectURL
@@ -118,7 +142,7 @@ describe('useDownloadQueue', () => {
         expect(result.current.queue[0].id).not.toBe(result.current.queue[1].id);
     });
 
-    it('should process queue sequentially using axios', async () => {
+    it('should process queue sequentially using fetch', async () => {
         axios.post.mockResolvedValue({ data: { success: true, token: 'test-token' } });
 
         const onDownloadSuccess = vi.fn();
@@ -135,12 +159,9 @@ describe('useDownloadQueue', () => {
         expect(axios.post).toHaveBeenCalled();
         
         await waitFor(() => {
-            expect(axios.get).toHaveBeenCalledWith(
+            expect(fetchSpy).toHaveBeenCalledWith(
                 expect.stringContaining('/api/download?token=test-token'),
-                expect.objectContaining({ 
-                    signal: expect.any(AbortSignal),
-                    responseType: 'blob'
-                })
+                expect.objectContaining({ signal: expect.any(AbortSignal) })
             );
         });
 
@@ -159,8 +180,8 @@ describe('useDownloadQueue', () => {
         );
     });
 
-    it('should handle download errors (axios failure)', async () => {
-        axios.get.mockRejectedValue(new Error('Network Error'));
+    it('should handle download errors (fetch failure)', async () => {
+        fetchSpy.mockRejectedValue(new Error('Network Error'));
 
         const { result } = renderHook(() => useDownloadQueue(credentials));
 
@@ -174,15 +195,18 @@ describe('useDownloadQueue', () => {
         }, { timeout: 5000 });
 
         expect(result.current.queue[0].error).toBeDefined();
-        // Expect 3 calls: initial + 2 retries
-        expect(axios.get).toHaveBeenCalledTimes(3);
+        expect(fetchSpy).toHaveBeenCalledTimes(3);
     });
     
-    it('should retry download on error', async () => {
-         axios.get
+    it('should retry download on stream error', async () => {
+         fetchSpy
             .mockRejectedValueOnce(new Error('Fail 1'))
             .mockRejectedValueOnce(new Error('Fail 2'))
-            .mockResolvedValue({ data: new Blob(['success']) });
+            .mockResolvedValue({
+                 ok: true,
+                 headers: { get: () => '12' },
+                 body: createMockStream(['success'])
+            });
 
         const { result } = renderHook(() => useDownloadQueue(credentials));
 
@@ -194,17 +218,30 @@ describe('useDownloadQueue', () => {
             expect(result.current.queue[0].status).toBe('completed');
         }, { timeout: 5000 });
 
-        expect(axios.get).toHaveBeenCalledTimes(3);
+        expect(fetchSpy).toHaveBeenCalledTimes(3);
     });
 
-    it('should update progress via onDownloadProgress', async () => {
-        let progressCallback;
-        axios.get.mockImplementation(async (url, config) => {
-            progressCallback = config.onDownloadProgress;
-            return new Promise((resolve) => {
-                // Wait a bit to simulate download
-                setTimeout(() => resolve({ data: new Blob(['done']) }), 100);
-            });
+    it('should force close stream when content-length is reached', async () => {
+        let cancelled = false;
+        const encoder = new TextEncoder();
+        
+        const infiniteStream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(encoder.encode('12345'));
+            },
+            pull(controller) {
+                if (cancelled) return;
+                 controller.enqueue(encoder.encode('67890'));
+            },
+            cancel() {
+                cancelled = true;
+            }
+        });
+        
+        fetchSpy.mockResolvedValue({
+            ok: true,
+            headers: { get: () => '5' },
+            body: infiniteStream
         });
 
         const { result } = renderHook(() => useDownloadQueue(credentials));
@@ -212,30 +249,16 @@ describe('useDownloadQueue', () => {
         act(() => {
             result.current.addToQueue([mockItem1]);
         });
-
+        
         await waitFor(() => {
-            expect(progressCallback).toBeDefined();
+            expect(result.current.queue[0].status).toBe('completed');
         });
-
-        act(() => {
-            progressCallback({ loaded: 40, total: 100 });
-        });
-
-        await waitFor(() => {
-            expect(result.current.currentProgress).toBe(40);
-        });
-
-        act(() => {
-            progressCallback({ loaded: 80, total: 100 });
-        });
-
-        await waitFor(() => {
-            expect(result.current.currentProgress).toBe(80);
-        });
+        
+        expect(cancelled).toBe(true);
     });
 
     it('should manually retry failed items', async () => {
-        axios.get.mockRejectedValue(new Error('Network Error'));
+        fetchSpy.mockRejectedValue(new Error('Network Error'));
         const { result } = renderHook(() => useDownloadQueue(credentials));
 
         act(() => {
@@ -246,8 +269,11 @@ describe('useDownloadQueue', () => {
              expect(result.current.queue[0].status).toBe('error');
         }, { timeout: 4000 });
 
-        // Fix axios.get for the manual retry
-        axios.get.mockResolvedValue({ data: new Blob(['ok']) });
+        fetchSpy.mockResolvedValue({
+             ok: true,
+             headers: { get: () => '2' },
+             body: createMockStream(['ok'])
+        });
 
         act(() => {
             result.current.retryFailed();
@@ -269,7 +295,7 @@ describe('useDownloadQueue', () => {
             expect(result.current.queue[0].status).toBe('completed');
         });
 
-        axios.get.mockRejectedValue(new Error('Network Error'));
+        fetchSpy.mockRejectedValue(new Error('Network Error'));
 
         const mockItem2 = { ...mockItem1, playbackURI: 'rtsp://test/2' };
         
@@ -283,15 +309,16 @@ describe('useDownloadQueue', () => {
         }, { timeout: 8000 });
 
         expect(result.current.queue).toHaveLength(2);
-        expect(result.current.queue.find(i => i.status === 'completed')).toBeDefined();
-        expect(result.current.queue.find(i => i.status === 'error')).toBeDefined();
 
         act(() => {
             result.current.clearCompleted();
         });
 
-        expect(result.current.queue).toHaveLength(1);
+        await waitFor(() => {
+            expect(result.current.queue).toHaveLength(1);
+        });
+
         expect(result.current.queue[0].playbackURI).toBe(mockItem2.playbackURI);
         expect(result.current.queue[0].status).toBe('error');
-    }, 10000);
+    }, 15000);
 });

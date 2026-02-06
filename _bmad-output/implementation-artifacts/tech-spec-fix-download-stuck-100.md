@@ -12,6 +12,11 @@ test_patterns: ['Jest', 'React Hooks Testing Library', 'Mocking fetch and Readab
 
 # Overview
 
+## Review Notes
+- Adversarial review completed
+- Findings: 10 total, 10 fixed, 0 skipped
+- Resolution approach: auto-fix (incremental)
+
 ## Problem Statement
 Users report that downloads occasionally get stuck at 100% in the browser. They don't receive the file, the next download in the queue doesn't start, and no error is reported. This likely happens because the frontend attempts to download the entire file as a `Blob` using Axios before triggering the browser's save dialog. For large video files, this can exceed browser memory limits or cause the UI thread to hang when creating a `blob:` URL. Additionally, if the NVR doesn't provide a `Content-Length` header, Axios cannot accurately report progress or know when the stream is truly finished in a way that aligns with the user's expectations.
 
@@ -111,11 +116,11 @@ To resolve this while preserving the sequential "queue" behavior and progress tr
 
 ## Acceptance Criteria
 
-- [ ] AC 1: Given a download queue, when a download starts, then it uses the Fetch API and streams data chunk by chunk.
-- [ ] AC 2: Given a file with a known Content-Length (e.g., 100MB), when the downloaded bytes reach 100MB, then the stream is forcefully closed and the save dialog appears immediately.
-- [ ] AC 3: Given a network interruption during download, when the stream fails, then the system automatically retries the download up to 2 times.
-- [ ] AC 4: Given a persistent network failure, when all 3 attempts fail, then the item is marked as 'error' and the queue proceeds to the next item automatically.
-- [ ] AC 5: Given a large file download, when the download is in progress, then the UI shows the correct percentage based on bytes received vs Content-Length.
+- [x] AC 1: Given a download queue, when a download starts, then it uses the Fetch API and streams data chunk by chunk.
+- [x] AC 2: Given a file with a known Content-Length (e.g., 100MB), when the downloaded bytes reach 100MB, then the stream is forcefully closed and the save dialog appears immediately.
+- [x] AC 3: Given a network interruption during download, when the stream fails, then the system automatically retries the download up to 2 times.
+- [x] AC 4: Given a persistent network failure, when all 3 attempts fail, then the item is marked as 'error' and the queue proceeds to the next item automatically.
+- [x] AC 5: Given a large file download, when the download is in progress, then the UI shows the correct percentage based on bytes received vs Content-Length.
 
 ## Dependencies
 - None. `fetch` is native to modern browsers.

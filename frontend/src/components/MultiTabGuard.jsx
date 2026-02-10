@@ -1,73 +1,81 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Container, Box, Typography, Alert, Button, CircularProgress } from '@mui/material';
 
-const HANDSHAKE_TIMEOUT = 1000; // Increased from 500ms
-const HEARTBEAT_INTERVAL = 2000; // Periodically check if we can become active
+const HANDSHAKE_TIMEOUT = 1000;
 const CHANNEL_NAME = 'hik_tab_guard';
+
+const generateInstanceId = () => {
+  const array = new Uint32Array(2);
+  window.crypto.getRandomValues(array);
+  return `${array[0].toString(36)}-${array[1].toString(36)}`;
+};
 
 const MultiTabGuard = ({ children }) => {
   const [status, setStatus] = useState('checking'); // 'checking' | 'active' | 'blocked'
-  const channelRef = useRef(null);
-  const timeoutIdRef = useRef(null);
+  const instanceIdRef = useRef(generateInstanceId());
+  const statusRef = useRef('checking');
 
   useEffect(() => {
-    const channel = new BroadcastChannel(CHANNEL_NAME);
-    channelRef.current = channel;
+    statusRef.current = status;
+    console.debug(`[MultiTabGuard] Status changed: ${status} (${instanceIdRef.current})`);
+  }, [status]);
+
+  useEffect(() => {
+    let channel;
+    try {
+      channel = new BroadcastChannel(CHANNEL_NAME);
+    } catch (err) {
+      console.error('[MultiTabGuard] Failed to initialize BroadcastChannel:', err);
+      setStatus('active'); // Fallback to active if channel fails
+      return;
+    }
 
     const handleMessage = (event) => {
-      if (event.data === 'HEARTBEAT_QUERY') {
-        if (status === 'active') {
-          channel.postMessage('HEARTBEAT_ACK');
+      const data = event.data;
+      const currentStatus = statusRef.current;
+
+      if (data.type === 'HEARTBEAT_QUERY') {
+        if (currentStatus === 'active') {
+          console.debug(`[MultiTabGuard] Responding to QUERY from ${data.instanceId}`);
+          channel.postMessage({ type: 'HEARTBEAT_ACK' });
+        } else if (currentStatus === 'checking') {
+          if (data.instanceId > instanceIdRef.current) {
+            console.debug(`[MultiTabGuard] Simultaneous load detected. Yielding to ${data.instanceId}`);
+            setStatus('blocked');
+          }
         }
-      } else if (event.data === 'HEARTBEAT_ACK') {
-        if (status === 'checking' || status === 'active') {
-           // If we receive an ACK while checking, we block.
-           // If we receive an ACK while active, it means another tab just became active (race), 
-           // we should probably stay active or block. 
-           // Handshake protocol says first one wins.
-           if (status === 'checking') {
-             if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
-             setStatus('blocked');
-           }
+      } 
+      else if (data.type === 'HEARTBEAT_ACK') {
+        if (currentStatus === 'checking') {
+          console.debug('[MultiTabGuard] Received ACK from existing leader. Blocking.');
+          setStatus('blocked');
         }
       }
     };
 
     channel.onmessage = handleMessage;
     
-    // Initial check
-    channel.postMessage('HEARTBEAT_QUERY');
-    timeoutIdRef.current = setTimeout(() => {
-      setStatus(prev => prev === 'checking' ? 'active' : prev);
-    }, HANDSHAKE_TIMEOUT);
+    try {
+      channel.postMessage({ 
+        type: 'HEARTBEAT_QUERY', 
+        instanceId: instanceIdRef.current 
+      });
+    } catch (err) {
+      console.error('[MultiTabGuard] Failed to post initial query:', err);
+    }
 
-    // Periodic check to see if we can unblock
-    const intervalId = setInterval(() => {
-      if (status === 'blocked') {
-        channel.postMessage('HEARTBEAT_QUERY');
-        // If no one ACKs within 1s, we'll try to become active next time or on refresh
-        // For simplicity and safety (AC3), we rely on refresh or periodic re-query.
-        // Let's implement a "silent" check that can auto-unblock.
-        let silentCheckTimeout = setTimeout(() => {
-            setStatus('active');
-        }, HANDSHAKE_TIMEOUT);
-        
-        const tempHandler = (e) => {
-            if (e.data === 'HEARTBEAT_ACK') {
-                clearTimeout(silentCheckTimeout);
-                channel.removeEventListener('message', tempHandler);
-            }
-        };
-        channel.addEventListener('message', tempHandler);
+    const timeoutId = setTimeout(() => {
+      if (statusRef.current === 'checking') {
+        console.debug('[MultiTabGuard] Handshake timeout reached. Becoming leader.');
+        setStatus('active');
       }
-    }, HEARTBEAT_INTERVAL);
+    }, HANDSHAKE_TIMEOUT);
 
     return () => {
       channel.close();
-      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
-      clearInterval(intervalId);
+      clearTimeout(timeoutId);
     };
-  }, [status]);
+  }, []);
 
   if (status === 'checking') {
     return (

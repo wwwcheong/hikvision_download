@@ -1,62 +1,74 @@
 const { chromium } = require('playwright');
 
+const BASE_URL = process.env.TEST_URL || 'http://localhost:5173';
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
-  
-  console.log('Opening Page 1...');
-  const page1 = await context.newPage();
-  await page1.goto('http://localhost:5173', { waitUntil: 'networkidle' });
-  
-  // Wait for the checking screen to disappear or the app to load
-  await page1.waitForSelector('text=Checking for other active tabs...', { state: 'detached', timeout: 10000 });
-
-  // Verify Page 1 is active (no alert)
-  const alert1 = page1.locator('text=Hikvision Downloader is already open in another tab');
-  const isBlocked1 = await alert1.isVisible();
-  if (isBlocked1) {
-    throw new Error('Page 1 was blocked, but it should be the active leader.');
-  }
-  console.log('Page 1 is active.');
-
-  console.log('Opening Page 2...');
-  const page2 = await context.newPage();
-  await page2.goto('http://localhost:5173', { waitUntil: 'networkidle' });
-
-  // Verify Page 2 is blocked
-  console.log('Checking for block alert on Page 2...');
-  const alert2 = page2.locator('text=Hikvision Downloader is already open in another tab');
   try {
-    await alert2.waitFor({ state: 'visible', timeout: 10000 });
-    console.log('SUCCESS: Page 2 is blocked as expected.');
-  } catch (e) {
-    throw new Error('Page 2 was not blocked by the MultiTabGuard.');
-  }
+    const context = await browser.newContext();
+    
+    console.log('--- Test 1: Standard Sequential Load ---');
+    const page1 = await context.newPage();
+    await page1.goto(BASE_URL, { waitUntil: 'networkidle' });
+    await page1.waitForSelector('text=Checking for other active tabs...', { state: 'detached', timeout: 10000 });
+    
+    const isBlocked1 = await page1.locator('text=Hikvision Downloader is already open in another tab').isVisible();
+    if (isBlocked1) throw new Error('Page 1 should be active.');
+    console.log('Page 1 is active.');
 
-  // Close Page 1 and refresh Page 2
-  console.log('Closing Page 1 and refreshing Page 2...');
-  await page1.close();
-  await page2.reload({ waitUntil: 'networkidle' });
-  
-  // Wait for the checking screen to disappear
-  await page2.waitForSelector('text=Checking for other active tabs...', { state: 'detached', timeout: 10000 });
+    const page2 = await context.newPage();
+    await page2.goto(BASE_URL, { waitUntil: 'networkidle' });
+    await page2.locator('text=Hikvision Downloader is already open in another tab').waitFor({ state: 'visible', timeout: 5000 });
+    console.log('Page 2 is blocked.');
 
-  // Verify Page 2 is now active
-  console.log('Checking if Page 2 is now active...');
-  const alert3 = page2.locator('text=Hikvision Downloader is already open in another tab');
-  const isBlocked3 = await alert3.isVisible();
-  if (isBlocked3) {
-    // With auto-unblock logic, it might take a moment.
-    console.log('Page 2 still blocked, waiting for auto-unblock or retry...');
-    await page2.waitForTimeout(3000); // Give it one more heartbeat cycle
-    if (await alert3.isVisible()) {
-        throw new Error('Page 2 is still blocked after Page 1 was closed and Page 2 was refreshed.');
+    console.log('Closing Page 1 and waiting (should remain blocked)...');
+    await page1.close();
+    await page2.waitForTimeout(3000);
+    const isBlocked2 = await page2.locator('text=Hikvision Downloader is already open in another tab').isVisible();
+    if (!isBlocked2) throw new Error('Page 2 should remain blocked after Page 1 is closed (no auto-unblock).');
+    console.log('Page 2 correctly remained blocked.');
+
+    console.log('Refreshing Page 2 (should become active)...');
+    await page2.reload({ waitUntil: 'networkidle' });
+    await page2.waitForSelector('text=Checking for other active tabs...', { state: 'detached', timeout: 10000 });
+    const isBlocked2AfterReload = await page2.locator('text=Hikvision Downloader is already open in another tab').isVisible();
+    if (isBlocked2AfterReload) throw new Error('Page 2 should be active after manual refresh.');
+    console.log('Page 2 is now active.');
+    await page2.close();
+
+    console.log('--- Test 2: Simultaneous Load (Race Condition) ---');
+    const pageA = await context.newPage();
+    const pageB = await context.newPage();
+    
+    console.log('Opening two pages simultaneously...');
+    await Promise.all([
+      pageA.goto(BASE_URL),
+      pageB.goto(BASE_URL)
+    ]);
+
+    // Wait for both to finish checking
+    await Promise.all([
+      pageA.waitForSelector('text=Checking for other active tabs...', { state: 'detached', timeout: 10000 }),
+      pageB.waitForSelector('text=Checking for other active tabs...', { state: 'detached', timeout: 10000 })
+    ]);
+
+    const isBlockedA = await pageA.locator('text=Hikvision Downloader is already open in another tab').isVisible();
+    const isBlockedB = await pageB.locator('text=Hikvision Downloader is already open in another tab').isVisible();
+
+    console.log(`Page A Blocked: ${isBlockedA}, Page B Blocked: ${isBlockedB}`);
+
+    if (isBlockedA && isBlockedB) {
+      throw new Error('Both pages blocked! One must be active.');
     }
-  }
-  console.log('SUCCESS: Page 2 is now active.');
+    if (!isBlockedA && !isBlockedB) {
+      throw new Error('Both pages active! Exactly one must be blocked.');
+    }
+    console.log('SUCCESS: Exactly one page is active in simultaneous load.');
 
-  await browser.close();
-  console.log('Multi-tab test PASSED!');
+  } finally {
+    await browser.close();
+  }
+  console.log('All multi-tab tests PASSED!');
 })().catch(err => {
   console.error('Multi-tab test FAILED:', err);
   process.exit(1);

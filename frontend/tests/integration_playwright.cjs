@@ -28,7 +28,7 @@ const { chromium } = require('playwright');
 
   // Wait for connection
   console.log('Waiting for connection (up to 30s)...');
-  await page.waitForSelector('text=Connected to 192.168.99.73', { timeout: 30000 });
+  await page.waitForSelector('text=/Connected: \\d+\\.\\d+\\.\\d+\\.\\d+/', { timeout: 30000 });
   await page.waitForTimeout(2000); // Wait for channels to load
 
   // 2. Fill Search Form

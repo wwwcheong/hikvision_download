@@ -5,6 +5,15 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
 
+// Helpers
+const getFileName = (item) => {
+    return `${item.cameraName.replace(/\s+/g, '_')}_${item.startTime}_${item.endTime}.mp4`.replace(/:/g, '-');
+};
+
+const generateId = (item) => {
+    return crypto.randomUUID ? crypto.randomUUID() : `${item.playbackURI}-${Date.now()}-${Math.random()}`;
+};
+
 const useDownloadQueue = (credentials, onDownloadSuccess) => {
     const [queue, setQueue] = useState(() => {
         try {
@@ -20,470 +29,188 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
         }
         return [];
     });
+
     const [isProcessing, setIsProcessing] = useState(false);
     const [currentProgress, setCurrentProgress] = useState(0);
     const [currentFileName, setCurrentFileName] = useState('');
-    const processingRef = useRef(false);
+    
+    // Using a trigger to "poke" the processing loop instead of watching the entire queue
+    const [processTrigger, setProcessTrigger] = useState(0);
+    const poke = useCallback(() => setProcessTrigger(t => t + 1), []);
+
     const abortControllerRef = useRef(null);
     const isMountedRef = useRef(true);
-    const queueRef = useRef(queue);
+    const processingLockRef = useRef(false);
 
-    // Keep queueRef in sync
+    // Persistence
     useEffect(() => {
-        queueRef.current = queue;
+        try {
+            localStorage.setItem('hik_download_queue', JSON.stringify(queue));
+        } catch (e) {
+            console.error('Failed to sync queue to localStorage', e);
+        }
     }, [queue]);
 
-    // Initial sync of UI state from localStorage
+    // Cleanup
     useEffect(() => {
-        const latestQueueStr = localStorage.getItem('hik_download_queue');
-        if (latestQueueStr) {
-            try {
-                const q = JSON.parse(latestQueueStr);
-                const downloadingItem = q.find(item => item.status === 'downloading');
-                if (downloadingItem) {
-                    setIsProcessing(true);
-                    if (downloadingItem.progress !== undefined) {
-                        setCurrentProgress(downloadingItem.progress);
-                        const fileName = `${downloadingItem.cameraName.replace(/\s+/g, '_')}_${downloadingItem.startTime}_${downloadingItem.endTime}.mp4`.replace(/:/g, '-');
-                        setCurrentFileName(fileName);
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to sync UI state on mount', e);
-            }
-        }
-    }, []);
-
-    // Cross-tab synchronization
-    useEffect(() => {
-        const handleStorageChange = (e) => {
-            if (e.key === 'hik_download_queue' && e.newValue) {
-                try {
-                    const newQueue = JSON.parse(e.newValue);
-                    setQueue(prev => {
-                        // Minimal check to avoid unnecessary state updates
-                        if (JSON.stringify(prev) === e.newValue) return prev;
-                        
-                        // Sync UI state with downloading item from another tab
-                        const downloadingItem = newQueue.find(item => item.status === 'downloading');
-                        if (downloadingItem) {
-                            setIsProcessing(true);
-                            if (downloadingItem.progress !== undefined) {
-                                setCurrentProgress(downloadingItem.progress);
-                                const fileName = `${downloadingItem.cameraName.replace(/\s+/g, '_')}_${downloadingItem.startTime}_${downloadingItem.endTime}.mp4`.replace(/:/g, '-');
-                                setCurrentFileName(fileName);
-                            }
-                        } else {
-                            // If we were processing but now no item is downloading in the shared queue,
-                            // reset our local UI state (unless we are the leader acquiring the lock)
-                            // Use a small timeout to avoid flickering during leadership handovers
-                            setTimeout(() => {
-                                if (!processingRef.current && isMountedRef.current) {
-                                    const latestQueue = JSON.parse(localStorage.getItem('hik_download_queue') || '[]');
-                                    const stillNoDownloading = !latestQueue.find(item => item.status === 'downloading');
-                                    if (stillNoDownloading) {
-                                        setIsProcessing(false);
-                                        setCurrentProgress(0);
-                                        setCurrentFileName('');
-                                    }
-                                }
-                            }, 100);
-                        }
-
-                        return newQueue;
-                    });
-                } catch (err) {
-                    console.error('Failed to parse queue from storage event', err);
-                }
-            } else if (e.key === 'hik_queue_command' && e.newValue) {
-                try {
-                    const command = JSON.parse(e.newValue);
-                    if (command.type === 'CANCEL_ALL') {
-                        if (abortControllerRef.current) {
-                            abortControllerRef.current.abort();
-                        }
-                    }
-                } catch (err) {
-                    console.error('Failed to parse command from storage event', err);
-                }
-            }
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            abortControllerRef.current?.abort();
         };
-
-        window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
     }, []);
 
-    const addToQueue = useCallback(async (items) => {
-        const update = () => {
-            try {
-                const latestQueueStr = localStorage.getItem('hik_download_queue');
-                const latestQueue = latestQueueStr ? JSON.parse(latestQueueStr) : [];
-
-                const newItems = items.map(item => ({
-                    ...item,
-                    id: crypto.randomUUID ? crypto.randomUUID() : `${item.playbackURI}-${Date.now()}-${Math.random()}`,
-                    status: 'pending',
-                    progress: 0,
-                    error: null
-                }));
-
-                const updatedQueue = [...latestQueue, ...newItems];
-                setQueue(updatedQueue);
-                localStorage.setItem('hik_download_queue', JSON.stringify(updatedQueue));
-            } catch (e) {
-                console.error('Failed to update queue in localStorage', e);
-            }
-        };
-
-        if (navigator.locks) {
-            await navigator.locks.request('hik_queue_edit_lock', async () => {
-                update();
-            });
-        } else {
-            update();
-        }
-    }, []);
-
-    const downloadWithRetry = async (url, fileName, setProgress, signal, attempt = 0) => {
+    const downloadWithRetry = async (url, fileName, onProgress, signal, attempt = 0) => {
+        let blobUrl = null;
         try {
             const response = await fetch(url, { signal });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            const contentLength = response.headers.get('Content-Length');
-            const total = contentLength ? parseInt(contentLength, 10) : 0;
+            const total = parseInt(response.headers.get('Content-Length') || '0', 10);
             let loaded = 0;
-
             const reader = response.body.getReader();
             const chunks = [];
 
             while (true) {
                 const { done, value } = await reader.read();
-
                 if (value) {
                     chunks.push(value);
                     loaded += value.length;
-
-                    if (total) {
-                        const percent = Math.round((loaded * 100) / total);
-                        setProgress(percent);
-                        
-                        // Force close if we have received enough data
-                        if (loaded >= total) {
-                            await reader.cancel();
-                            break;
-                        }
+                    if (total) onProgress(Math.round((loaded * 100) / total));
+                    if (total && loaded >= total) {
+                        await reader.cancel();
+                        break;
                     }
                 }
-                
                 if (done) break;
             }
 
-            // Create Blob and save
-            const blob = new Blob(chunks);
-            const blobUrl = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
+            blobUrl = window.URL.createObjectURL(new Blob(chunks));
+            const link = document.body.appendChild(document.createElement('a'));
             link.href = blobUrl;
             link.setAttribute('download', fileName);
-            document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-            
             return true;
-
         } catch (error) {
-            if (error.name === 'AbortError') {
-                throw error; // Don't retry if aborted
-            }
-
-            console.warn(`Download attempt ${attempt + 1} failed:`, error);
-            
-            if (attempt < MAX_RETRIES) {
-                // Wait before retrying
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-                return downloadWithRetry(url, fileName, setProgress, signal, attempt + 1);
-            }
-            throw error;
+            if (error.name === 'AbortError' || attempt >= MAX_RETRIES) throw error;
+            await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+            return downloadWithRetry(url, fileName, onProgress, signal, attempt + 1);
+        } finally {
+            if (blobUrl) window.URL.revokeObjectURL(blobUrl);
         }
     };
 
-    // Track mounted state
+    // Refined Processing Loop
     useEffect(() => {
-        isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-            // Cancel any active download on unmount
-            abortControllerRef.current?.abort();
-            processingRef.current = false;
-        };
-    }, []);
-
-    useEffect(() => {
-        const processQueue = async () => {
-            if (processingRef.current) return;
+        const processNext = async () => {
+            if (processingLockRef.current || !credentials) return;
             
-            const pendingIndex = queueRef.current.findIndex(item => item.status === 'pending');
-            if (pendingIndex === -1 || !credentials) {
-                // If not processing and no pending, ensure UI reflects idle state
-                if (!processingRef.current && isProcessing) {
-                    setIsProcessing(false);
-                }
+            const nextItem = queue.find(item => item.status === 'pending');
+            if (!nextItem) {
+                setIsProcessing(false);
                 return;
             }
 
-            processingRef.current = true;
+            processingLockRef.current = true;
+            setIsProcessing(true);
+            setCurrentProgress(0);
 
-            const executeProcess = async () => {
-                if (!isMountedRef.current) return;
+            const controller = new AbortController();
+            abortControllerRef.current = controller;
+            const fileName = getFileName(nextItem);
+            setCurrentFileName(fileName);
 
-                // Re-check latest queue from localStorage inside the lock
-                let currentQueue = queueRef.current;
-                try {
-                    const latestQueueStr = localStorage.getItem('hik_download_queue');
-                    if (latestQueueStr) {
-                        currentQueue = JSON.parse(latestQueueStr);
-                    }
-                } catch (e) {
-                    console.error('Failed to parse queue in lock', e);
-                }
-
-                const itemIndex = currentQueue.findIndex(item => item.status === 'pending');
-                if (itemIndex === -1 || !isMountedRef.current) return;
-
-                const item = currentQueue[itemIndex];
-                
-                setIsProcessing(true);
-                setCurrentProgress(0);
-
-                // Create controller for this operation
-                const controller = new AbortController();
-                abortControllerRef.current = controller;
-                const signal = controller.signal;
-
-                // Update status to downloading in local state and localStorage
-                const updatingQueue = currentQueue.map(qi => 
-                    qi.id === item.id ? { ...qi, status: 'downloading', progress: 0 } : qi
-                );
-                
-                try {
-                    setQueue(updatingQueue);
-                    localStorage.setItem('hik_download_queue', JSON.stringify(updatingQueue));
-                } catch (e) {
-                    console.error('Failed to sync queue status to localStorage', e);
-                }
-
-                try {
-                    const { ip, port, username, password } = credentials;
-                    const fileName = `${item.cameraName.replace(/\s+/g, '_')}_${item.startTime}_${item.endTime}.mp4`.replace(/:/g, '-');
-                    setCurrentFileName(fileName);
-
-                    // 1. Get Token
-                    const res = await axios.post(`${API_URL}/api/download-token`, {
-                        ip, port, username, password,
-                        playbackURI: item.playbackURI,
-                        fileName
-                    }, { signal });
-
-                    if (res.data.success && res.data.token) {
-                        const url = `${API_URL}/api/download?token=${res.data.token}`;
-                        
-                        // 2. Fetch with Retry and Streaming
-                        let lastSyncProgress = 0;
-                        const setProgressWithSync = (percent) => {
-                            if (!isMountedRef.current) return;
-                            setCurrentProgress(percent);
-                            
-                            // Only sync to localStorage every 5% to reduce thread blocking
-                            if (percent - lastSyncProgress >= 5 || percent === 100) {
-                                lastSyncProgress = percent;
-                                setQueue(prev => {
-                                    const nextQ = prev.map(qi => qi.id === item.id ? { ...qi, progress: percent } : qi);
-                                    try {
-                                        localStorage.setItem('hik_download_queue', JSON.stringify(nextQ));
-                                    } catch (e) {
-                                        console.error('Failed to sync progress to localStorage', e);
-                                    }
-                                    return nextQ;
-                                });
-                            }
-                        };
-
-                        await downloadWithRetry(url, fileName, setProgressWithSync, signal);
-
-                        // Mark completed and persist FIRST
-                        if (isMountedRef.current) {
-                            setQueue(prev => {
-                                const nextQ = prev.map(qi => 
-                                    qi.id === item.id ? { ...qi, status: 'completed', progress: 100 } : qi
-                                );
-                                try {
-                                    localStorage.setItem('hik_download_queue', JSON.stringify(nextQ));
-                                } catch (e) {
-                                    console.error('Failed to mark completed in localStorage', e);
-                                }
-                                return nextQ;
-                            });
-
-                            // Then trigger callback
-                            if (onDownloadSuccess) {
-                                onDownloadSuccess(item, credentials);
-                            }
-                        }
-                    } else {
-                        throw new Error('Failed to get token');
-                    }
-                } catch (error) {
-                    if (error.name === 'CanceledError' || error.name === 'AbortError') {
-                        console.log('Download aborted');
-                    } else {
-                        console.error('Download error:', error);
-                        if (isMountedRef.current) {
-                            setQueue(prev => {
-                                const nextQ = prev.map(qi => 
-                                    qi.id === item.id ? { ...qi, status: 'error', error: error.message } : qi
-                                );
-                                try {
-                                    localStorage.setItem('hik_download_queue', JSON.stringify(nextQ));
-                                } catch (e) {
-                                    console.error('Failed to sync error status to localStorage', e);
-                                }
-                                return nextQ;
-                            });
-                        }
-                    }
-                } finally {
-                    if (isMountedRef.current) {
-                        if (abortControllerRef.current === controller) {
-                            abortControllerRef.current = null;
-                        }
-                        setIsProcessing(false);
-                        setCurrentFileName('');
-                        setCurrentProgress(0);
-                    }
-                }
-            };
+            // Update status to downloading
+            setQueue(prev => prev.map(qi => qi.id === nextItem.id ? { ...qi, status: 'downloading', progress: 0 } : qi));
 
             try {
-                if (navigator.locks) {
-                    await navigator.locks.request('hik_download_lock', executeProcess);
-                } else {
-                    console.warn('Web Locks API not supported - falling back to unprotected execution');
-                    await executeProcess();
+                const { ip, port, username, password } = credentials;
+                const res = await axios.post(`${API_URL}/api/download-token`, {
+                    ip, port, username, password,
+                    playbackURI: nextItem.playbackURI,
+                    fileName
+                }, { signal: controller.signal });
+
+                if (!res.data.success || !res.data.token) throw new Error('Failed to get download token');
+
+                let lastSyncProgress = 0;
+                await downloadWithRetry(
+                    `${API_URL}/api/download?token=${res.data.token}`,
+                    fileName,
+                    (percent) => {
+                        if (!isMountedRef.current) return;
+                        setCurrentProgress(percent);
+                        if (percent - lastSyncProgress >= 5 || percent === 100) {
+                            lastSyncProgress = percent;
+                            setQueue(prev => prev.map(qi => qi.id === nextItem.id ? { ...qi, progress: percent } : qi));
+                        }
+                    },
+                    controller.signal
+                );
+
+                if (isMountedRef.current) {
+                    setQueue(prev => prev.map(qi => qi.id === nextItem.id ? { ...qi, status: 'completed', progress: 100 } : qi));
+                    if (onDownloadSuccess) onDownloadSuccess(nextItem, credentials);
                 }
-            } catch (err) {
-                console.error('Queue processing failed or lock error:', err);
+            } catch (error) {
+                if (error.name !== 'AbortError' && isMountedRef.current) {
+                    setQueue(prev => prev.map(qi => qi.id === nextItem.id ? { ...qi, status: 'error', error: error.message } : qi));
+                }
             } finally {
                 if (isMountedRef.current) {
-                    processingRef.current = false;
+                    processingLockRef.current = false;
+                    setCurrentFileName('');
+                    setCurrentProgress(0);
+                    abortControllerRef.current = null;
+                    // Trigger the next loop
+                    poke();
                 }
             }
         };
 
-        processQueue();
-    }, [credentials, queue]);
+        processNext();
+    }, [credentials, processTrigger, onDownloadSuccess]); 
+    // Note: queue removed from dependencies to avoid redundant re-runs. 
+    // Trigger and completion handle the loop.
 
-    const retryFailed = useCallback(async () => {
-        const update = () => {
-            setQueue(prev => {
-                const nextQ = prev.map(item => 
-                    item.status === 'error' 
-                        ? { ...item, status: 'pending', error: null, progress: 0 }
-                        : item
-                );
-                try {
-                    localStorage.setItem('hik_download_queue', JSON.stringify(nextQ));
-                } catch (e) {
-                    console.error('Failed to retry failed items in localStorage', e);
-                }
-                return nextQ;
-            });
-        };
+    const addToQueue = useCallback((items) => {
+        setQueue(prev => [
+            ...prev,
+            ...items.map(item => ({
+                ...item,
+                id: generateId(item),
+                status: 'pending',
+                progress: 0,
+                error: null
+            }))
+        ]);
+        poke();
+    }, [poke]);
 
-        if (navigator.locks) {
-            await navigator.locks.request('hik_queue_edit_lock', async () => {
-                update();
-            });
-        } else {
-            update();
-        }
+    const retryFailed = useCallback(() => {
+        setQueue(prev => prev.map(item => 
+            item.status === 'error' ? { ...item, status: 'pending', error: null, progress: 0 } : item
+        ));
+        poke();
+    }, [poke]);
+
+    const clearCompleted = useCallback(() => {
+        setQueue(prev => prev.filter(item => item.status !== 'completed'));
     }, []);
 
-    /**
-     * Removes all items with status 'completed' from the queue.
-     * Keeps 'pending', 'downloading', and 'error' items.
-     */
-    const clearCompleted = useCallback(async () => {
-        const update = () => {
-            setQueue(prev => {
-                const nextQ = prev.filter(item => item.status !== 'completed');
-                try {
-                    localStorage.setItem('hik_download_queue', JSON.stringify(nextQ));
-                } catch (e) {
-                    console.error('Failed to clear completed in localStorage', e);
-                }
-                return nextQ;
-            });
-        };
-
-        if (navigator.locks) {
-            await navigator.locks.request('hik_queue_edit_lock', async () => {
-                update();
-            });
-        } else {
-            update();
-        }
+    const cancelAll = useCallback(() => {
+        abortControllerRef.current?.abort();
+        setQueue([]);
+        setIsProcessing(false);
+        setCurrentProgress(0);
+        setCurrentFileName('');
+        processingLockRef.current = false;
     }, []);
-
-    const cancelAll = useCallback(async () => {
-        const update = () => {
-            // 1. Signal other tabs to abort
-            try {
-                localStorage.setItem('hik_queue_command', JSON.stringify({ type: 'CANCEL_ALL', timestamp: Date.now() }));
-            } catch (e) {
-                console.error('Failed to send cancel command to localStorage', e);
-            }
-
-            // 2. Abort active request locally
-            abortControllerRef.current?.abort();
-            abortControllerRef.current = null;
-
-            // 3. Clear state and localStorage
-            const emptyQueue = [];
-            setQueue(emptyQueue);
-            try {
-                localStorage.setItem('hik_download_queue', JSON.stringify(emptyQueue));
-            } catch (e) {
-                console.error('Failed to clear queue in localStorage', e);
-            }
-            
-            setIsProcessing(false);
-            setCurrentProgress(0);
-            setCurrentFileName('');
-            processingRef.current = false;
-        };
-
-        if (navigator.locks) {
-            await navigator.locks.request('hik_queue_edit_lock', async () => {
-                update();
-            });
-        } else {
-            update();
-        }
-    }, []);
-
 
     return {
-        queue,
-        addToQueue,
-        retryFailed,
-        clearCompleted,
-        cancelAll,
-        isProcessing,
-        currentProgress,
-        currentFileName
+        queue, addToQueue, retryFailed, clearCompleted, cancelAll,
+        isProcessing, currentProgress, currentFileName
     };
 };
 

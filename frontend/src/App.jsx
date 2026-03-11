@@ -110,7 +110,7 @@ function App() {
         flexShrink: 0 
       }}>
         <Typography variant="h6" component="h1">
-          Hikvision NVR Downloader
+          Hikvision NVR Web Downloader
         </Typography>
         
         {credentials && (

@@ -1,30 +1,87 @@
-import React, { useState } from 'react';
-import { 
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
-    Paper, Button, Checkbox, Box, FormControlLabel, Typography
-} from '@mui/material';
-import { formatDate } from '../utils/dateUtils';
+import React, { useState, useMemo } from 'react';
+import { Box, Typography, Button, Checkbox, Stack } from '@mui/material';
+
+const PAGE_SIZE = 50;
+
+const formatDate = (raw) => {
+    if (!raw || typeof raw !== 'string') return raw || '';
+    if (raw.length < 15) return raw;
+    const y = raw.substring(0, 4);
+    const m = raw.substring(4, 6);
+    const d = raw.substring(6, 8);
+    let timeStart = 8;
+    if (isNaN(parseInt(raw.charAt(8), 10))) {
+        timeStart = 9;
+    }
+    const h = raw.substring(timeStart, timeStart + 2);
+    const min = raw.substring(timeStart + 2, timeStart + 4);
+    const s = raw.substring(timeStart + 4, timeStart + 6);
+    return `${y}-${m}-${d} ${h}:${min}:${s}`;
+};
 
 const formatSize = (bytes) => {
     if (!bytes) return '-';
     const mb = Math.round(parseInt(bytes, 10) / (1024 * 1024));
-    return `${mb}M`;
+    return `${mb} MB`;
 };
 
-const ResultsTable = ({ results, totalCount, downloadState, credentials, isDownloaded }) => {
+const PageBtn = ({ children, onClick, active, disabled }) => (
+    <Box
+        component="button"
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
+        sx={{
+            px: 0.75,
+            py: 0.35,
+            border: '1px solid',
+            borderColor: active ? 'primary.main' : 'divider',
+            borderRadius: 0.5,
+            backgroundColor: active ? 'primary.main' : 'background.paper',
+            color: active ? 'primary.contrastText' : 'text.secondary',
+            fontFamily: '"Fira Sans", sans-serif',
+            fontSize: '0.65rem',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.4 : 1,
+            transition: 'all 100ms',
+            '&:hover': !disabled && !active
+                ? { borderColor: 'primary.main', color: 'primary.main' }
+                : {},
+        }}
+    >
+        {children}
+    </Box>
+);
+
+const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownloaded, loading }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [skipDownloaded, setSkipDownloaded] = useState(true);
+    const [page, setPage] = useState(0);
     const { addToQueue } = downloadState;
 
-    // Selection Logic
+    const availableResults = useMemo(() => {
+        if (!results) return [];
+        return results.filter((r) => !(skipDownloaded && isDownloaded(r, credentials)));
+    }, [results, skipDownloaded, isDownloaded, credentials]);
+
+    const totalPages = Math.ceil(availableResults.length / PAGE_SIZE);
+    const paginatedResults = useMemo(() => {
+        const start = page * PAGE_SIZE;
+        return availableResults.slice(start, start + PAGE_SIZE);
+    }, [availableResults, page]);
+
+    const pageNumbers = useMemo(() => {
+        if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i);
+        if (page < 4) return [0, 1, 2, 3, 4, '...', totalPages - 1];
+        if (page > totalPages - 5) return [0, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+        return [0, '...', page - 1, page, page + 1, '...', totalPages - 1];
+    }, [page, totalPages]);
+
     const handleSelectAll = (event) => {
         const newSelected = new Set(selectedIds);
-        const visibleAvailableResults = results.filter(r => !(skipDownloaded && isDownloaded(r, credentials)));
-        
         if (event.target.checked) {
-            visibleAvailableResults.forEach(r => newSelected.add(r.playbackURI));
+            paginatedResults.forEach((r) => newSelected.add(r.playbackURI));
         } else {
-            visibleAvailableResults.forEach(r => newSelected.delete(r.playbackURI));
+            paginatedResults.forEach((r) => newSelected.delete(r.playbackURI));
         }
         setSelectedIds(newSelected);
     };
@@ -39,135 +96,240 @@ const ResultsTable = ({ results, totalCount, downloadState, credentials, isDownl
         setSelectedIds(newSelected);
     };
 
-    const isSelected = (playbackURI) => selectedIds.has(playbackURI);
-
-    // Download Logic
-    const handleDownloadSingle = (item) => {
-        addToQueue([item]);
-    };
-
     const handleDownloadSelected = () => {
-        const itemsToDownload = results.filter(r => selectedIds.has(r.playbackURI));
+        const itemsToDownload = results.filter((r) => selectedIds.has(r.playbackURI));
         addToQueue(itemsToDownload);
-        
-        // Only clear the ones we actually queued
         const newSelected = new Set(selectedIds);
-        itemsToDownload.forEach(item => newSelected.delete(item.playbackURI));
+        itemsToDownload.forEach((item) => newSelected.delete(item.playbackURI));
         setSelectedIds(newSelected);
     };
-    
-    const numSelected = Array.from(selectedIds).filter(id => results.some(r => r.playbackURI === id)).length;
-    const availableResults = results.filter(r => !(skipDownloaded && isDownloaded(r, credentials)));
-    const rowCount = availableResults.length;
-    const isSelectAllChecked = rowCount > 0 && availableResults.every(r => selectedIds.has(r.playbackURI));
-    const isSelectAllIndeterminate = !isSelectAllChecked && availableResults.some(r => selectedIds.has(r.playbackURI));
 
+    const numSelected = Array.from(selectedIds).filter((id) =>
+        results?.some((r) => r.playbackURI === id)
+    ).length;
+
+    const isSelectAllChecked =
+        paginatedResults.length > 0 &&
+        paginatedResults.every((r) => selectedIds.has(r.playbackURI));
+    const isSelectAllIndeterminate =
+        !isSelectAllChecked && paginatedResults.some((r) => selectedIds.has(r.playbackURI));
+
+    if (!results) return null;
 
     return (
-        <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
-            {/* Batch Actions */}
-            <Box sx={{ flexShrink: 0, mb: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Button 
-                    variant="contained" 
-                    color="primary" 
-                    disabled={numSelected === 0}
-                    onClick={handleDownloadSelected}
-                    size="small"
-                >
-                    Download Selected ({numSelected})
-                </Button>
-                <FormControlLabel
-                    control={
-                        <Checkbox
-                            checked={skipDownloaded}
-                            onChange={(e) => setSkipDownloaded(e.target.checked)}
-                            size="small"
-                        />
-                    }
-                    label={<Typography variant="body2">Skip downloaded files</Typography>}
-                />
-                <Box sx={{ flexGrow: 1 }} />
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            {/* ── Top bar: results count + pagination ── */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    px: 1.5,
+                    py: 0.75,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    flexShrink: 0,
+                }}
+            >
                 <Typography variant="caption" color="text.secondary">
-                    Found {totalCount} recordings, filtered to {results.length}
+                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, availableResults.length)} of{' '}
+                    {availableResults.length}
+                    {totalCount !== availableResults.length && ` (${totalCount} total)`}
                 </Typography>
+
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                    {numSelected > 0 && (
+                        <Button
+                            variant="contained"
+                            size="small"
+                            onClick={handleDownloadSelected}
+                            sx={{ fontSize: '0.7rem', fontWeight: 600 }}
+                        >
+                            Export Selected ({numSelected})
+                        </Button>
+                    )}
+
+                    <Stack direction="row" spacing={0.5}>
+                        <PageBtn onClick={() => setPage(0)} disabled={page === 0}>&laquo;</PageBtn>
+                        <PageBtn onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>&lsaquo;</PageBtn>
+                        {pageNumbers.map((n, i) =>
+                            n === '...' ? (
+                                <Box key={`ellipsis-${i}`} sx={{ px: 0.5, fontSize: '0.65rem', color: 'text.secondary' }}>...</Box>
+                            ) : (
+                                <PageBtn key={n} onClick={() => setPage(n)} active={page === n}>{n + 1}</PageBtn>
+                            )
+                        )}
+                        <PageBtn onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>&rsaquo;</PageBtn>
+                        <PageBtn onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>&raquo;</PageBtn>
+                    </Stack>
+                </Stack>
             </Box>
 
-            <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto' }}>
-                <Table stickyHeader size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell padding="checkbox">
-                                <Checkbox
-                                    data-testid="select-all-checkbox"
-                                    indeterminate={isSelectAllIndeterminate}
-                                    checked={isSelectAllChecked}
-                                    onChange={handleSelectAll}
-                                />
-                            </TableCell>
-                            <TableCell sx={{ py: 0.5 }}>Camera</TableCell>
-                            <TableCell sx={{ py: 0.5 }}>Start Time</TableCell>
-                            <TableCell sx={{ py: 0.5 }}>End Time</TableCell>
-                            <TableCell sx={{ py: 0.5 }}>Size</TableCell>
-                            <TableCell sx={{ py: 0.5 }}>Action</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {results.map((row) => {
-                            const isRowSelected = isSelected(row.playbackURI);
-                            const isRowDownloaded = isDownloaded(row, credentials);
-                            return (
-                                <TableRow 
-                                    key={row.playbackURI} 
-                                    hover
-                                    onClick={() => (!isRowDownloaded || !skipDownloaded) && handleSelectRow(row.playbackURI)}
-                                    selected={isRowSelected}
-                                    sx={{ 
-                                        cursor: (isRowDownloaded && skipDownloaded) ? 'not-allowed' : 'pointer',
-                                        ...(isRowDownloaded && skipDownloaded && {
-                                            backgroundColor: (theme) => theme.palette.action.disabledBackground,
-                                            color: (theme) => theme.palette.text.disabled,
-                                        }),
-                                    }}
-                                >
-                                    <TableCell padding="checkbox">
-                                        <Checkbox
-                                            checked={isRowSelected}
-                                            disabled={isRowDownloaded && skipDownloaded}
-                                            onClick={(e) => e.stopPropagation()} 
-                                            onChange={() => handleSelectRow(row.playbackURI)}
-                                        />
-                                    </TableCell>
-                                    <TableCell sx={{ py: 0.5 }}>{row.cameraName}</TableCell>
-                                    <TableCell sx={{ py: 0.5 }}>{formatDate(row.startTime)}</TableCell>
-                                    <TableCell sx={{ py: 0.5 }}>{formatDate(row.endTime)}</TableCell>
-                                    <TableCell sx={{ py: 0.5 }}>{formatSize(row.size)}</TableCell>
-                                    <TableCell sx={{ py: 0.5 }}>
-                                        <Button 
-                                            variant="outlined" 
-                                            size="small" 
-                                            disabled={isRowDownloaded && skipDownloaded}
-                                            sx={{ py: 0, minHeight: '30px' }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDownloadSingle(row);
-                                            }}
-                                        >
-                                            {isRowDownloaded ? 'Downloaded' : 'Download'}
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            );
-                        })}
-                        {results.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} align="center">No recordings found</TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+            {/* ── Scrollable table ── */}
+            <Box sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+                <Box sx={{ minWidth: 700 }}>
+                    <Box
+                        component="table"
+                        sx={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            fontFamily: '"Fira Code", monospace',
+                            fontSize: '0.7rem',
+                        }}
+                    >
+                        <Box component="thead" sx={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                            <Box component="tr">
+                                <Box component="th" sx={{ ...thStyle, width: 40 }}>
+                                    <Checkbox
+                                        data-testid="select-all-checkbox"
+                                        size="small"
+                                        indeterminate={isSelectAllIndeterminate}
+                                        checked={isSelectAllChecked}
+                                        onChange={handleSelectAll}
+                                        sx={{ p: 0.25 }}
+                                    />
+                                </Box>
+                                <Box component="th" sx={{ ...thStyle, width: 150 }}>Camera</Box>
+                                <Box component="th" sx={{ ...thStyle, width: 160 }}>Start (UTC)</Box>
+                                <Box component="th" sx={{ ...thStyle, width: 160 }}>End (UTC)</Box>
+                                <Box component="th" sx={{ ...thStyle, width: 80, textAlign: 'right' }}>Size</Box>
+                                <Box component="th" sx={{ ...thStyle, width: 90, textAlign: 'center' }}>Status</Box>
+                                <Box component="th" sx={{ ...thStyle, width: 70 }}>Action</Box>
+                            </Box>
+                        </Box>
+                        <Box component="tbody">
+                            {paginatedResults.map((row) => {
+                                const isRowSelected = selectedIds.has(row.playbackURI);
+                                const isRowDownloaded = isDownloaded(row, credentials);
+                                const available = !(isRowDownloaded && skipDownloaded);
+
+                                return (
+                                    <Box
+                                        component="tr"
+                                        key={row.playbackURI}
+                                        onClick={() => available && handleSelectRow(row.playbackURI)}
+                                        sx={{
+                                            cursor: available ? 'pointer' : 'not-allowed',
+                                            backgroundColor: isRowSelected ? 'action.selected' : 'transparent',
+                                            opacity: available ? 1 : 0.5,
+                                            transition: 'background-color 100ms',
+                                            '&:hover': {
+                                                backgroundColor: available
+                                                    ? isRowSelected ? 'action.selected' : 'action.hover'
+                                                    : 'transparent',
+                                            },
+                                        }}
+                                    >
+                                        <Box component="td" sx={{ ...tdStyle, textAlign: 'center' }}>
+                                            <Checkbox
+                                                size="small"
+                                                checked={isRowSelected}
+                                                disabled={!available}
+                                                onChange={() => handleSelectRow(row.playbackURI)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                sx={{ p: 0.25 }}
+                                            />
+                                        </Box>
+                                        <Box component="td" sx={tdStyle}>
+                                            <Typography sx={cellText}>{row.cameraName}</Typography>
+                                        </Box>
+                                        <Box component="td" sx={tdStyle}>
+                                            <Typography sx={cellText}>{formatDate(row.startTime)}</Typography>
+                                        </Box>
+                                        <Box component="td" sx={tdStyle}>
+                                            <Typography sx={cellText}>{formatDate(row.endTime)}</Typography>
+                                        </Box>
+                                        <Box component="td" sx={{ ...tdStyle, textAlign: 'right' }}>
+                                            <Typography sx={{ ...cellText, fontVariantNumeric: 'tabular-nums' }}>
+                                                {formatSize(row.size)}
+                                            </Typography>
+                                        </Box>
+                                        <Box component="td" sx={{ ...tdStyle, textAlign: 'center' }}>
+                                            <Box
+                                                sx={{
+                                                    display: 'inline-block',
+                                                    px: 0.75,
+                                                    py: 0.25,
+                                                    borderRadius: 0.5,
+                                                    fontSize: '0.6rem',
+                                                    fontWeight: 600,
+                                                    backgroundColor: isRowDownloaded ? '#dcfce7' : '#fef3c7',
+                                                    color: isRowDownloaded ? '#166534' : '#92400e',
+                                                }}
+                                            >
+                                                {isRowDownloaded ? 'DONE' : 'READY'}
+                                            </Box>
+                                        </Box>
+                                        <Box component="td" sx={tdStyle}>
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                disabled={!available}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    addToQueue([row]);
+                                                }}
+                                                sx={{
+                                                    fontSize: '0.6rem',
+                                                    py: 0.25,
+                                                    px: 1,
+                                                    minWidth: 0,
+                                                    borderColor: 'divider',
+                                                    color: 'primary.main',
+                                                    '&:hover': {
+                                                        borderColor: 'primary.main',
+                                                        backgroundColor: 'action.hover',
+                                                    },
+                                                }}
+                                            >
+                                                {isRowDownloaded ? 'Done' : 'Export'}
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                );
+                            })}
+                            {paginatedResults.length === 0 && (
+                                <Box component="tr">
+                                    <Box component="td" colSpan={7} sx={{ ...tdStyle, textAlign: 'center', py: 4 }}>
+                                        <Typography variant="body2" color="text.secondary">No recordings found</Typography>
+                                    </Box>
+                                </Box>
+                            )}
+                        </Box>
+                    </Box>
+                </Box>
+            </Box>
         </Box>
     );
+};
+
+const thStyle = {
+    backgroundColor: 'background.default',
+    fontWeight: 600,
+    color: 'text.primary',
+    fontSize: '0.65rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px',
+    px: 1,
+    py: 0.75,
+    borderBottom: '2px solid',
+    borderColor: 'divider',
+    textAlign: 'left',
+    whiteSpace: 'nowrap',
+};
+
+const tdStyle = {
+    px: 1,
+    py: 0.75,
+    borderBottom: '1px solid',
+    borderColor: 'divider',
+    color: 'text.secondary',
+};
+
+const cellText = {
+    fontFamily: '"Fira Code", monospace',
+    fontSize: '0.7rem',
+    color: 'text.primary',
 };
 
 export default ResultsTable;

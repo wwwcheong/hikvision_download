@@ -118,11 +118,15 @@ function App() {
           <Box
             sx={{
               width: 280,
+              minWidth: 280,
+              maxWidth: 280,
               flexShrink: 0,
               display: 'flex',
               flexDirection: 'column',
               gap: 1.5,
-              alignSelf: 'flex-start',
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
             }}
           >
             {/* Connect Panel */}
@@ -132,7 +136,7 @@ function App() {
 
             {/* Filters Panel */}
             {credentials && channels.length > 0 && (
-              <Box sx={{ backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+              <Box sx={{ backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 <SidebarFilters
                   channels={channels}
                   selectedCameras={selectedCameras}

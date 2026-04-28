@@ -20,7 +20,7 @@ const SidebarFilters = ({
     disabled,
 }) => {
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 1.5 }}>
             {/* Time Range */}
             <Box>
                 <Box
@@ -150,7 +150,7 @@ const SidebarFilters = ({
             </Box>
 
             {/* Camera Selection */}
-            <Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 <Box
                     sx={{
                         display: 'flex',
@@ -199,8 +199,9 @@ const SidebarFilters = ({
                         border: '1px solid',
                         borderColor: 'divider',
                         borderRadius: 1,
-                        maxHeight: 220,
-                        overflowY: 'scroll',
+                        flex: 1,
+                        minHeight: 0,
+                        overflowY: 'auto',
                         scrollbarWidth: 'normal',
                         '&::-webkit-scrollbar': { width: 12 },
                         '&::-webkit-scrollbar-track': { background: '#E2E8F0' },

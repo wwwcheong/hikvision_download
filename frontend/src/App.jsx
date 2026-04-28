@@ -107,13 +107,13 @@ function App() {
   }, [results, selectedCameras]);
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default', p: 1.5 }}>
-      <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ height: '100vh', overflow: 'hidden', backgroundColor: 'background.default', p: 1.5 }}>
+      <Box sx={{ maxWidth: 1400, mx: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Header */}
         <AppHeader />
 
         {/* Body: Sidebar + Main */}
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexGrow: 1, minHeight: 0 }}>
           {/* Left Sidebar */}
           <Box
             sx={{
@@ -122,6 +122,7 @@ function App() {
               display: 'flex',
               flexDirection: 'column',
               gap: 1.5,
+              alignSelf: 'flex-start',
             }}
           >
             {/* Connect Panel */}
@@ -172,6 +173,7 @@ function App() {
               display: 'flex',
               flexDirection: 'column',
               gap: 1.5,
+              overflow: 'hidden',
             }}
           >
             {/* Results Panel */}

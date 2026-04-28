@@ -52,6 +52,52 @@ const PageBtn = ({ children, onClick, active, disabled }) => (
     </Box>
 );
 
+const thStyle = {
+    backgroundColor: 'background.default',
+    fontWeight: 600,
+    color: 'text.primary',
+    fontSize: '0.65rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px',
+    px: 1,
+    py: 0.75,
+    borderBottom: '2px solid',
+    borderColor: 'divider',
+    textAlign: 'left',
+    whiteSpace: 'nowrap',
+};
+
+const tdStyle = {
+    px: 1,
+    py: 0.75,
+    borderBottom: '1px solid',
+    borderColor: 'divider',
+    color: 'text.secondary',
+};
+
+const cellText = {
+    fontFamily: '"Fira Code", monospace',
+    fontSize: '0.7rem',
+    color: 'text.primary',
+};
+
+const tableScrollSx = {
+    flexGrow: 1,
+    minHeight: 0,
+    overflowY: 'scroll',
+    // Force always-visible scrollbar (overrides OS overlay behavior)
+    scrollbarWidth: 'normal',
+    '&::-webkit-scrollbar': { width: 12 },
+    '&::-webkit-scrollbar-track': { background: '#E2E8F0' },
+    '&::-webkit-scrollbar-thumb': {
+        background: '#94A3B8',
+        borderRadius: 6,
+        border: '2px solid #E2E8F0',
+    },
+    '&::-webkit-scrollbar-thumb:hover': { background: '#64748B' },
+    '&::-webkit-scrollbar-corner': { background: '#E2E8F0' },
+};
+
 const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownloaded, loading }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [skipDownloaded, setSkipDownloaded] = useState(true);
@@ -166,7 +212,7 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
             </Box>
 
             {/* ── Scrollable table ── */}
-            <Box sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+            <Box sx={tableScrollSx}>
                 <Box sx={{ minWidth: 700 }}>
                     <Box
                         component="table"
@@ -301,35 +347,6 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
             </Box>
         </Box>
     );
-};
-
-const thStyle = {
-    backgroundColor: 'background.default',
-    fontWeight: 600,
-    color: 'text.primary',
-    fontSize: '0.65rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.3px',
-    px: 1,
-    py: 0.75,
-    borderBottom: '2px solid',
-    borderColor: 'divider',
-    textAlign: 'left',
-    whiteSpace: 'nowrap',
-};
-
-const tdStyle = {
-    px: 1,
-    py: 0.75,
-    borderBottom: '1px solid',
-    borderColor: 'divider',
-    color: 'text.secondary',
-};
-
-const cellText = {
-    fontFamily: '"Fira Code", monospace',
-    fontSize: '0.7rem',
-    color: 'text.primary',
 };
 
 export default ResultsTable;

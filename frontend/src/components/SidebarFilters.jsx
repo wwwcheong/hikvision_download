@@ -200,12 +200,16 @@ const SidebarFilters = ({
                         borderColor: 'divider',
                         borderRadius: 1,
                         maxHeight: 220,
-                        overflowY: 'auto',
-                        '&::-webkit-scrollbar': { width: 6 },
+                        overflowY: 'scroll',
+                        scrollbarWidth: 'normal',
+                        '&::-webkit-scrollbar': { width: 12 },
+                        '&::-webkit-scrollbar-track': { background: '#E2E8F0' },
                         '&::-webkit-scrollbar-thumb': {
-                            background: 'divider',
-                            borderRadius: 3,
+                            background: '#94A3B8',
+                            borderRadius: 6,
+                            border: '2px solid #E2E8F0',
                         },
+                        '&::-webkit-scrollbar-thumb:hover': { background: '#64748B' },
                     }}
                 >
                     {channels.map((ch) => {

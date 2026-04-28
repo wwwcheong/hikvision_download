@@ -106,21 +106,25 @@ const theme = createTheme({
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          scrollbarWidth: 'thin',
-          scrollbarColor: '#CBD5E1 #F1F5F9',
+          scrollbarWidth: 'normal',
+          scrollbarColor: '#94A3B8 #E2E8F0',
           '&::-webkit-scrollbar': {
-            width: '8px',
-            height: '8px',
+            width: '12px',
+            height: '12px',
           },
           '&::-webkit-scrollbar-track': {
-            background: '#F1F5F9',
+            background: '#E2E8F0',
           },
           '&::-webkit-scrollbar-thumb': {
-            background: '#CBD5E1',
-            borderRadius: '4px',
+            background: '#94A3B8',
+            borderRadius: '6px',
+            border: '2px solid #E2E8F0',
           },
           '&::-webkit-scrollbar-thumb:hover': {
-            background: '#94A3B8',
+            background: '#64748B',
+          },
+          '&::-webkit-scrollbar-corner': {
+            background: '#E2E8F0',
           },
           '::selection': {
             backgroundColor: alpha('#1E3A5F', 0.15),

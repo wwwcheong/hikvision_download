@@ -211,8 +211,42 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
                 </Stack>
             </Box>
 
-            {/* ── Scrollable table ── */}
-            <Box sx={tableScrollSx}>
+            {/* ── Table header (sticky, outside scroll) ── */}
+            <Box sx={{ flexShrink: 0, overflow: 'hidden', minWidth: 700 }}>
+                <Box
+                    component="table"
+                    sx={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        fontFamily: '"Fira Code", monospace',
+                        fontSize: '0.7rem',
+                    }}
+                >
+                    <Box component="thead">
+                        <Box component="tr">
+                            <Box component="th" sx={{ ...thStyle, width: 40 }}>
+                                <Checkbox
+                                    data-testid="select-all-checkbox"
+                                    size="small"
+                                    indeterminate={isSelectAllIndeterminate}
+                                    checked={isSelectAllChecked}
+                                    onChange={handleSelectAll}
+                                    sx={{ p: 0.25 }}
+                                />
+                            </Box>
+                            <Box component="th" sx={{ ...thStyle, width: 150 }}>Camera</Box>
+                            <Box component="th" sx={{ ...thStyle, width: 160 }}>Start (UTC)</Box>
+                            <Box component="th" sx={{ ...thStyle, width: 160 }}>End (UTC)</Box>
+                            <Box component="th" sx={{ ...thStyle, width: 80, textAlign: 'right' }}>Size</Box>
+                            <Box component="th" sx={{ ...thStyle, width: 90, textAlign: 'center' }}>Status</Box>
+                            <Box component="th" sx={{ ...thStyle, width: 70 }}>Action</Box>
+                        </Box>
+                    </Box>
+                </Box>
+            </Box>
+
+            {/* ── Scrollable table body ── */}
+            <Box sx={tableScrollSx} className="scroll-shadows">
                 <Box sx={{ minWidth: 700 }}>
                     <Box
                         component="table"
@@ -223,26 +257,6 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
                             fontSize: '0.7rem',
                         }}
                     >
-                        <Box component="thead" sx={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                            <Box component="tr">
-                                <Box component="th" sx={{ ...thStyle, width: 40 }}>
-                                    <Checkbox
-                                        data-testid="select-all-checkbox"
-                                        size="small"
-                                        indeterminate={isSelectAllIndeterminate}
-                                        checked={isSelectAllChecked}
-                                        onChange={handleSelectAll}
-                                        sx={{ p: 0.25 }}
-                                    />
-                                </Box>
-                                <Box component="th" sx={{ ...thStyle, width: 150 }}>Camera</Box>
-                                <Box component="th" sx={{ ...thStyle, width: 160 }}>Start (UTC)</Box>
-                                <Box component="th" sx={{ ...thStyle, width: 160 }}>End (UTC)</Box>
-                                <Box component="th" sx={{ ...thStyle, width: 80, textAlign: 'right' }}>Size</Box>
-                                <Box component="th" sx={{ ...thStyle, width: 90, textAlign: 'center' }}>Status</Box>
-                                <Box component="th" sx={{ ...thStyle, width: 70 }}>Action</Box>
-                            </Box>
-                        </Box>
                         <Box component="tbody">
                             {paginatedResults.map((row) => {
                                 const isRowSelected = selectedIds.has(row.playbackURI);

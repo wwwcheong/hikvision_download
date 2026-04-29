@@ -194,14 +194,14 @@ const SidebarFilters = ({
                     </Stack>
                 </Box>
 
-                <Box
+                                <Box
+                    className="scroll-shadows"
                     sx={{
                         border: '1px solid',
                         borderColor: 'divider',
                         borderRadius: 1,
                         flex: 1,
                         minHeight: 0,
-                        overflowY: 'auto',
                         scrollbarWidth: 'normal',
                         '&::-webkit-scrollbar': { width: 12 },
                         '&::-webkit-scrollbar-track': { background: '#E2E8F0' },

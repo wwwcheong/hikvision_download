@@ -177,19 +177,34 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
                     flexShrink: 0,
                 }}
             >
-                <Typography variant="caption" color="text.secondary">
-                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, availableResults.length)} of{' '}
-                    {availableResults.length}
-                    {totalCount !== availableResults.length && ` (${totalCount} total)`}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                        {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, availableResults.length)} of{' '}
+                        {availableResults.length}
+                        {totalCount !== availableResults.length && ` (${totalCount} total)`}
+                    </Typography>
+                </Box>
 
                 <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography
+                        component="label"
+                        variant="caption"
+                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', color: 'text.secondary' }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={!skipDownloaded}
+                            onChange={(e) => { setSkipDownloaded(!e.target.checked); setPage(0); }}
+                            style={{ accentColor: 'var(--mui-palette-primary-main, #1976d2)', cursor: 'pointer' }}
+                        />
+                        Show downloaded
+                    </Typography>
                     {numSelected > 0 && (
                         <Button
                             variant="contained"
                             size="small"
                             onClick={handleDownloadSelected}
-                            sx={{ fontSize: '0.7rem', fontWeight: 600 }}
+                            sx={{ fontSize: '0.8rem', py: 0.75, px: 1.5, fontWeight: 600 }}
                         >
                             Export Selected ({numSelected})
                         </Button>
@@ -311,7 +326,7 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
                                                     px: 0.75,
                                                     py: 0.25,
                                                     borderRadius: 0.5,
-                                                    fontSize: '0.6rem',
+                                                    fontSize: '0.8rem',
                                                     fontWeight: 600,
                                                     backgroundColor: isRowDownloaded ? '#dcfce7' : '#fef3c7',
                                                     color: isRowDownloaded ? '#166534' : '#92400e',
@@ -330,9 +345,9 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
                                                     addToQueue([row]);
                                                 }}
                                                 sx={{
-                                                    fontSize: '0.6rem',
-                                                    py: 0.25,
-                                                    px: 1,
+                                                    fontSize: '0.8rem',
+                                                    py: 0.75,
+                                                    px: 1.25,
                                                     minWidth: 0,
                                                     borderColor: 'divider',
                                                     color: 'primary.main',
@@ -342,7 +357,7 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
                                                     },
                                                 }}
                                             >
-                                                {isRowDownloaded ? 'Done' : 'Export'}
+                                                Export
                                             </Button>
                                         </Box>
                                     </Box>

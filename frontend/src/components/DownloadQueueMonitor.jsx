@@ -45,7 +45,7 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
     }
 
     return (
-        <Box sx={{ flexShrink: 0, mb: 2, width: '100%' }}>
+        <Box sx={{ flexShrink: 0, mb: 2, width: '100%', overflow: 'hidden' }}>
             <Stack direction="row" spacing={2} alignItems="flex-start">
                 <Stack spacing={1}>
                     <Button
@@ -66,15 +66,15 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
                     )}
                 </Stack>
                 
-                <Stack spacing={1} sx={{ flexGrow: 1 }}>
+                <Stack spacing={1} sx={{ flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
                     <Box>
                         <Typography variant="body2" color="textSecondary">
                             {UI_STRINGS.BATCH_STATUS} {stats.completed} {UI_STRINGS.DONE}, {stats.errorCount} {UI_STRINGS.FAILED}, {stats.remaining} {UI_STRINGS.REMAINING}
                         </Typography>
                         {/* F2: Add aria-label for accessibility */}
-                        <LinearProgress 
-                            variant="determinate" 
-                            value={stats.progress} 
+                        <LinearProgress
+                            variant="determinate"
+                            value={stats.progress}
                             aria-label="Overall batch progress"
                         />
                     </Box>
@@ -84,26 +84,26 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
                                 {UI_STRINGS.DOWNLOADING} {currentFileName} ({currentProgress}%)
                             </Typography>
                             {/* F2: Add aria-label for accessibility */}
-                            <LinearProgress 
-                                variant="determinate" 
-                                value={currentProgress} 
-                                color="secondary" 
+                            <LinearProgress
+                                variant="determinate"
+                                value={currentProgress}
+                                color="secondary"
                                 aria-label={`Progress for ${currentFileName}`}
                             />
                         </Box>
                     )}
-                    
+
                     {stats.errorCount > 0 && (
-                        <Stack direction="row" alignItems="center" spacing={2} sx={{ mt: 1, p: 1, bgcolor: '#fff0f0', borderRadius: 1 }}>
-                            <Typography variant="body2" color="error">
+                        <Stack direction="row" alignItems="flex-start" spacing={2} sx={{ mt: 1, p: 1, bgcolor: '#fff0f0', borderRadius: 1, overflow: 'hidden' }}>
+                            <Typography variant="body2" color="error" sx={{ flexShrink: 0 }}>
                                 {stats.errorCount} {UI_STRINGS.FAILED_DOWNLOADS}
                             </Typography>
-                            <Button size="small" variant="outlined" color="error" onClick={retryFailed}>
+                            <Button size="small" variant="outlined" color="error" onClick={retryFailed} sx={{ flexShrink: 0 }}>
                                 {UI_STRINGS.RETRY_FAILED}
                             </Button>
-                            <Box sx={{ maxHeight: 60, overflowY: 'auto', width: '100%' }}>
+                            <Box sx={{ flexGrow: 1, minHeight: 0, maxHeight: 80, overflowY: 'auto' }}>
                                 {stats.failedItems.map((item, idx) => {
-                                    const timeRange = (item.startTime && item.endTime) 
+                                    const timeRange = (item.startTime && item.endTime)
                                         ? ` (${formatDate(item.startTime)} - ${formatDate(item.endTime)})`
                                         : '';
                                     return (

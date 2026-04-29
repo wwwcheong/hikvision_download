@@ -118,9 +118,9 @@ const SidebarConfig = ({ credentials, onConnect, onDisconnect }) => {
                         onClick={onDisconnect}
                         variant="outlined"
                         sx={{
-                            fontSize: '0.65rem',
-                            py: 0.35,
-                            px: 1,
+                            fontSize: '0.8rem',
+                            py: 0.75,
+                            px: 1.5,
                             minWidth: 0,
                             color: 'text.secondary',
                             borderColor: 'divider',

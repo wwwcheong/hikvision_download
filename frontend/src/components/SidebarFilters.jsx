@@ -50,9 +50,9 @@ const SidebarFilters = ({
                         onClick={onSearch}
                         disabled={disabled || loading}
                         sx={{
-                            fontSize: '0.65rem',
-                            py: 0.5,
-                            px: 1.25,
+                            fontSize: '0.8rem',
+                            py: 0.75,
+                            px: 1.5,
                             minWidth: 0,
                             fontWeight: 600,
                         }}

@@ -158,15 +158,6 @@ function App() {
               </Box>
             )}
 
-            {/* Download Monitor */}
-            {credentials && downloadState.queue.length > 0 && (
-              <Box sx={{ backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
-                <DownloadQueueMonitor
-                  downloadState={downloadState}
-                  onCancelAll={() => setOpenCancelDialog(true)}
-                />
-              </Box>
-            )}
           </Box>
 
           {/* Main Content */}
@@ -221,6 +212,16 @@ function App() {
                   downloadState={downloadState}
                   isDownloaded={isDownloaded}
                   loading={loading}
+                />
+              </Box>
+            )}
+
+            {/* Download Monitor */}
+            {credentials && downloadState.queue.length > 0 && (
+              <Box sx={{ backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5, flexShrink: 0 }}>
+                <DownloadQueueMonitor
+                  downloadState={downloadState}
+                  onCancelAll={() => setOpenCancelDialog(true)}
                 />
               </Box>
             )}

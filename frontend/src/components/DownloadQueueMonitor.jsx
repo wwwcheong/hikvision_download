@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Box, Stack, Button, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 
 const UI_STRINGS = {
     DOWNLOAD: 'Download',
@@ -7,6 +7,15 @@ const UI_STRINGS = {
     CANCEL_ALL: 'Cancel All',
     NO_DOWNLOAD: 'No active download'
 };
+
+const DustBloomIcon = ({ size = 18 }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6h18" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        <polyline points="9 13 11 15 15 11" />
+    </svg>
+);
 
 const CircularProgress = ({ value = 0, size = 48, strokeWidth = 4 }) => {
     const radius = (size - strokeWidth) / 2;
@@ -115,8 +124,8 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
     }, [queue]);
 
     const batchStatusText = stats.errorCount > 0
-        ? `${stats.completed}/${stats.total}, ${stats.errorCount} failed`
-        : `${stats.completed}/${stats.total}`;
+        ? `Done: ${stats.completed}/${stats.total}, Fail: ${stats.errorCount}`
+        : `Done: ${stats.completed}/${stats.total}`;
 
     return (
         <Box
@@ -144,32 +153,62 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
             <Box
                 sx={{
                     display: 'flex',
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    gap: 2,
+                    alignItems: 'center',
+                    gap: 1.5,
                     flexWrap: 'wrap'
                 }}
             >
-                {/* LEFT SECTION: Download progress */}
-                <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                {/* LEFT: Clear Done */}
+                <Button
+                    variant="outlined"
+                    color="success"
+                    onClick={clearCompleted}
+                    disabled={stats.completed === 0}
+                    sx={{
+                        minWidth: '36px',
+                        width: '36px',
+                        height: '36px',
+                        padding: 0,
+                        borderColor: 'success.main',
+                        color: 'success.main',
+                        '&:hover': {
+                            borderColor: 'success.dark',
+                            color: 'success.dark',
+                            backgroundColor: 'rgba(76, 175, 80, 0.08)'
+                        },
+                        '&.Mui-disabled': {
+                            borderColor: 'grey.300',
+                            color: 'grey.300'
+                        }
+                    }}
+                >
+                    <DustBloomIcon />
+                </Button>
+
+                {/* Batch status */}
+                <Typography
+                    variant="body2"
+                    color="textPrimary"
+                    sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}
+                >
+                    {batchStatusText}
+                </Typography>
+
+                {/* CENTER: Current download filename (takes remaining space) */}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
                     {isProcessing && currentFileName ? (
-                        <>
-                            <Box sx={{ minWidth: 0, maxWidth: { xs: 150, sm: 200 } }}>
-                                <Typography
-                                    variant="body2"
-                                    color="primary"
-                                    sx={{
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                        fontWeight: 500
-                                    }}
-                                >
-                                    {currentFileName}
-                                </Typography>
-                            </Box>
-                            <CircularProgress value={currentProgress} />
-                            <CancelButton onClick={cancelCurrent} disabled={!isProcessing} />
-                        </>
+                        <Typography
+                            variant="body2"
+                            color="primary"
+                            sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontWeight: 500
+                            }}
+                        >
+                            {currentFileName}
+                        </Typography>
                     ) : (
                         <Typography variant="body2" color="textSecondary">
                             {UI_STRINGS.NO_DOWNLOAD}
@@ -177,36 +216,22 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
                     )}
                 </Box>
 
-                {/* RIGHT SECTION: Batch status + action buttons */}
-                <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={1}>
-                        <Button
-                            variant="outlined"
-                            color="success"
-                            size="small"
-                            onClick={clearCompleted}
-                            disabled={stats.completed === 0}
-                        >
-                            {UI_STRINGS.CLEAR_DONE}
-                        </Button>
-                        <Button
-                            variant="outlined"
-                            color="error"
-                            size="small"
-                            onClick={onCancelAll}
-                            disabled={!isProcessing}
-                        >
-                            {UI_STRINGS.CANCEL_ALL}
-                        </Button>
-                        <Typography
-                            variant="body2"
-                            color="textPrimary"
-                            sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}
-                        >
-                            {batchStatusText}
-                        </Typography>
-                    </Stack>
-                </Box>
+                {/* RIGHT: Progress and actions */}
+                {isProcessing && currentFileName && (
+                    <>
+                        <CircularProgress value={currentProgress} />
+                        <CancelButton onClick={cancelCurrent} disabled={!isProcessing} />
+                    </>
+                )}
+                <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={onCancelAll}
+                    disabled={!isProcessing}
+                >
+                    {UI_STRINGS.CANCEL_ALL}
+                </Button>
             </Box>
         </Box>
     );

@@ -31,15 +31,15 @@ const PageBtn = ({ children, onClick, active, disabled }) => (
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         sx={{
-            px: 0.75,
-            py: 0.35,
+            px: 1,
+            py: 0.75,
             border: '1px solid',
             borderColor: active ? 'primary.main' : 'divider',
             borderRadius: 0.5,
             backgroundColor: active ? 'primary.main' : 'background.paper',
             color: active ? 'primary.contrastText' : 'text.secondary',
             fontFamily: '"Fira Sans", sans-serif',
-            fontSize: '0.65rem',
+            fontSize: '0.8rem',
             cursor: disabled ? 'not-allowed' : 'pointer',
             opacity: disabled ? 0.4 : 1,
             transition: 'all 100ms',

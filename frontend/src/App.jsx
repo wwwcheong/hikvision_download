@@ -171,128 +171,131 @@ function App() {
               overflow: 'hidden',
             }}
           >
-            {/* Results Panel */}
-            {credentials && results && (
-              <Box
-                sx={{
-                  backgroundColor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 1.5,
-                  flexGrow: 1,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, pb: 1, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      textTransform: 'uppercase',
-                      fontWeight: 600,
-                      fontSize: '0.65rem',
-                      letterSpacing: '0.5px',
-                      color: 'text.secondary',
-                    }}
-                  >
-                    Recording Files — {filteredResults.length} Results
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      {credentials.ip} — {channels.length} cameras
+            {/* Scrollable content area */}
+            <Box sx={{ flexGrow: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+              {/* Results Panel */}
+              {credentials && results && (
+                <Box
+                  sx={{
+                    backgroundColor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    p: 1.5,
+                    flexGrow: 1,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, pb: 1, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        textTransform: 'uppercase',
+                        fontWeight: 600,
+                        fontSize: '0.65rem',
+                        letterSpacing: '0.5px',
+                        color: 'text.secondary',
+                      }}
+                    >
+                      Recording Files — {filteredResults.length} Results
                     </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {credentials.ip} — {channels.length} cameras
+                      </Typography>
+                    </Box>
                   </Box>
+                  <ResultsTable
+                    results={filteredResults}
+                    totalCount={results.length}
+                    credentials={credentials}
+                    downloadState={downloadState}
+                    isDownloaded={isDownloaded}
+                    loading={loading}
+                  />
                 </Box>
-                <ResultsTable
-                  results={filteredResults}
-                  totalCount={results.length}
-                  credentials={credentials}
-                  downloadState={downloadState}
-                  isDownloaded={isDownloaded}
-                  loading={loading}
-                />
-              </Box>
-            )}
+              )}
 
-            {/* Download Monitor */}
+              {/* Empty state when not connected */}
+              {!credentials && (
+                <Box
+                  sx={{
+                    backgroundColor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    p: 4,
+                    textAlign: 'center',
+                  }}
+                >
+                  <Typography variant="h6" color="text.secondary" sx={{ fontFamily: '"Fira Code", monospace', fontSize: '0.9rem' }}>
+                    Connect to an NVR to search recordings
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Loading / error states */}
+              {credentials && !results && !loading && !error && (
+                <Box
+                  sx={{
+                    backgroundColor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    p: 4,
+                    textAlign: 'center',
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Set time range and cameras, then click Search
+                  </Typography>
+                </Box>
+              )}
+
+              {loading && (
+                <Box
+                  sx={{
+                    backgroundColor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    p: 4,
+                    textAlign: 'center',
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Searching...
+                  </Typography>
+                </Box>
+              )}
+
+              {error && (
+                <Box
+                  sx={{
+                    backgroundColor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    p: 2,
+                  }}
+                  role="alert"
+                >
+                  <Typography variant="body2" color="error">
+                    {error}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            {/* Download Monitor - always at bottom */}
             {credentials && (
               <Box sx={{ backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5, flexShrink: 0 }}>
                 <DownloadQueueMonitor
                   downloadState={downloadState}
                   onCancelAll={() => setOpenCancelDialog(true)}
                 />
-              </Box>
-            )}
-
-            {/* Empty state when not connected */}
-            {!credentials && (
-              <Box
-                sx={{
-                  backgroundColor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 4,
-                  textAlign: 'center',
-                }}
-              >
-                <Typography variant="h6" color="text.secondary" sx={{ fontFamily: '"Fira Code", monospace', fontSize: '0.9rem' }}>
-                  Connect to an NVR to search recordings
-                </Typography>
-              </Box>
-            )}
-
-            {/* Loading / error states */}
-            {credentials && !results && !loading && !error && (
-              <Box
-                sx={{
-                  backgroundColor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 4,
-                  textAlign: 'center',
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Set time range and cameras, then click Search
-                </Typography>
-              </Box>
-            )}
-
-            {loading && (
-              <Box
-                sx={{
-                  backgroundColor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 4,
-                  textAlign: 'center',
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Searching...
-                </Typography>
-              </Box>
-            )}
-
-            {error && (
-              <Box
-                sx={{
-                  backgroundColor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 2,
-                }}
-                role="alert"
-              >
-                <Typography variant="body2" color="error">
-                  {error}
-                </Typography>
               </Box>
             )}
           </Box>

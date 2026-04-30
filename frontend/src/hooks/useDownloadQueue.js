@@ -200,16 +200,26 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
     }, []);
 
     const cancelAll = useCallback(() => {
-        abortControllerRef.current?.abort();
         setQueue([]);
+        abortControllerRef.current?.abort();
         setIsProcessing(false);
         setCurrentProgress(0);
         setCurrentFileName('');
         processingLockRef.current = false;
     }, []);
 
+    const cancelCurrent = useCallback(() => {
+        setQueue(prev => prev.filter(item => item.status !== 'downloading'));
+        abortControllerRef.current?.abort();
+        //setIsProcessing(false);
+        //setCurrentProgress(0);
+        //setCurrentFileName('');
+        processingLockRef.current = false;
+        poke();
+    }, [poke]);
+
     return {
-        queue, addToQueue, retryFailed, clearCompleted, cancelAll,
+        queue, addToQueue, retryFailed, clearCompleted, cancelAll, cancelCurrent,
         isProcessing, currentProgress, currentFileName
     };
 };

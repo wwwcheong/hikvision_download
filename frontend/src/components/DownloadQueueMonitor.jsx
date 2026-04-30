@@ -1,24 +1,100 @@
 import React, { useMemo } from 'react';
-import { Box, Stack, Button, Typography, LinearProgress } from '@mui/material';
-import { formatDate } from '../utils/dateUtils';
+import { Box, Stack, Button, Typography } from '@mui/material';
 
 const UI_STRINGS = {
-    BATCH_STATUS: 'Batch Status:',
-    DOWNLOADING: 'Downloading:',
+    DOWNLOAD: 'Download',
+    CLEAR_DONE: 'Clear Done',
     CANCEL_ALL: 'Cancel All',
-    CLEAR_COMPLETED: 'Clear Completed',
-    RETRY_FAILED: 'Retry Failed',
-    FAILED_DOWNLOADS: 'failed downloads',
-    UNKNOWN_ERROR: 'Unknown error',
-    DONE: 'done',
-    FAILED: 'failed',
-    REMAINING: 'remaining'
+    NO_DOWNLOAD: 'No active download'
+};
+
+const CircularProgress = ({ value = 0, size = 48, strokeWidth = 4 }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference * (1 - value / 100);
+    const center = size / 2;
+
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+            <circle
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="none"
+                stroke="#e0e0e0"
+                strokeWidth={strokeWidth}
+            />
+            <circle
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="none"
+                stroke="#1976d2"
+                strokeWidth={strokeWidth}
+                strokeDasharray={circumference}
+                strokeDashoffset={offset}
+                transform={`rotate(-90 ${center} ${center})`}
+                strokeLinecap="round"
+            />
+            <text
+                x={center}
+                y={center}
+                textAnchor="middle"
+                dy="0.35em"
+                fontSize={size * 0.25}
+                fontWeight="bold"
+                fill="#333"
+            >
+                {Math.round(value)}%
+            </text>
+        </svg>
+    );
+};
+
+const CancelButton = ({ onClick, disabled }) => {
+    const buttonSize = 36;
+
+    return (
+        <Button
+            variant="outlined"
+            onClick={onClick}
+            disabled={disabled}
+            sx={{
+                minWidth: `${buttonSize}px`,
+                width: `${buttonSize}px`,
+                height: `${buttonSize}px`,
+                padding: 0,
+                borderColor: 'grey.400',
+                color: 'grey.600',
+                '&:hover': {
+                    borderColor: 'error.main',
+                    color: 'error.main',
+                    backgroundColor: 'rgba(244, 67, 54, 0.08)'
+                },
+                '&.Mui-disabled': {
+                    borderColor: 'grey.300',
+                    color: 'grey.300'
+                }
+            }}
+        >
+            <svg width="20" height="20" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2"/>
+                <path d="M8 8L16 16M16 8L8 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+        </Button>
+    );
 };
 
 const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
-    const { queue, retryFailed, clearCompleted, isProcessing, currentProgress, currentFileName } = downloadState;
+    const {
+        queue,
+        clearCompleted,
+        cancelCurrent,
+        isProcessing,
+        currentProgress,
+        currentFileName
+    } = downloadState;
 
-    // F1: Use useMemo for stats calculation to prevent redundant array iterations
     const stats = useMemo(() => {
         const pending = queue.filter(i => i.status === 'pending').length;
         const downloading = queue.filter(i => i.status === 'downloading').length;
@@ -26,7 +102,6 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
         const failedItems = queue.filter(i => i.status === 'error');
         const errorCount = failedItems.length;
         const total = queue.length;
-        const progress = total > 0 ? ((completed + errorCount) / total) * 100 : 0;
 
         return {
             pending,
@@ -35,88 +110,104 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
             failedItems,
             errorCount,
             total,
-            progress,
             remaining: pending + downloading
         };
     }, [queue]);
 
-    if (stats.total === 0) {
-        return null;
-    }
+    const batchStatusText = stats.errorCount > 0
+        ? `${stats.completed}/${stats.total}, ${stats.errorCount} failed`
+        : `${stats.completed}/${stats.total}`;
 
     return (
-        <Box sx={{ flexShrink: 0, mb: 2, width: '100%', overflow: 'hidden' }}>
-            <Stack direction="row" spacing={2} alignItems="flex-start">
-                <Stack spacing={1}>
-                    <Button
-                        variant="outlined"
-                        color="error"
-                        onClick={onCancelAll}
-                    >
-                        {UI_STRINGS.CANCEL_ALL}
-                    </Button>
-                    {stats.completed > 0 && (
+        <Box
+            sx={{
+                flexShrink: 0,
+                width: '100%',
+                overflow: 'hidden'
+            }}
+        >
+            <Typography
+                variant="caption"
+                sx={{
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
+                    fontSize: '0.65rem',
+                    letterSpacing: '0.5px',
+                    color: 'text.secondary',
+                    px: 0.5,
+                    mb: 0.5
+                }}
+            >
+                {UI_STRINGS.DOWNLOAD}
+            </Typography>
+
+            <Box
+                sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    gap: 2,
+                    flexWrap: 'wrap'
+                }}
+            >
+                {/* LEFT SECTION: Download progress */}
+                <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    {isProcessing && currentFileName ? (
+                        <>
+                            <Box sx={{ minWidth: 0, maxWidth: { xs: 150, sm: 200 } }}>
+                                <Typography
+                                    variant="body2"
+                                    color="primary"
+                                    sx={{
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        fontWeight: 500
+                                    }}
+                                >
+                                    {currentFileName}
+                                </Typography>
+                            </Box>
+                            <CircularProgress value={currentProgress} />
+                            <CancelButton onClick={cancelCurrent} disabled={!isProcessing} />
+                        </>
+                    ) : (
+                        <Typography variant="body2" color="textSecondary">
+                            {UI_STRINGS.NO_DOWNLOAD}
+                        </Typography>
+                    )}
+                </Box>
+
+                {/* RIGHT SECTION: Batch status + action buttons */}
+                <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={1}>
                         <Button
                             variant="outlined"
                             color="success"
+                            size="small"
                             onClick={clearCompleted}
+                            disabled={stats.completed === 0}
                         >
-                            {UI_STRINGS.CLEAR_COMPLETED}
+                            {UI_STRINGS.CLEAR_DONE}
                         </Button>
-                    )}
-                </Stack>
-                
-                <Stack spacing={1} sx={{ flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
-                    <Box>
-                        <Typography variant="body2" color="textSecondary">
-                            {UI_STRINGS.BATCH_STATUS} {stats.completed} {UI_STRINGS.DONE}, {stats.errorCount} {UI_STRINGS.FAILED}, {stats.remaining} {UI_STRINGS.REMAINING}
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            onClick={onCancelAll}
+                            disabled={!isProcessing}
+                        >
+                            {UI_STRINGS.CANCEL_ALL}
+                        </Button>
+                        <Typography
+                            variant="body2"
+                            color="textPrimary"
+                            sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}
+                        >
+                            {batchStatusText}
                         </Typography>
-                        {/* F2: Add aria-label for accessibility */}
-                        <LinearProgress
-                            variant="determinate"
-                            value={stats.progress}
-                            aria-label="Overall batch progress"
-                        />
-                    </Box>
-                    {isProcessing && currentFileName && (
-                        <Box>
-                            <Typography variant="caption" color="primary">
-                                {UI_STRINGS.DOWNLOADING} {currentFileName} ({currentProgress}%)
-                            </Typography>
-                            {/* F2: Add aria-label for accessibility */}
-                            <LinearProgress
-                                variant="determinate"
-                                value={currentProgress}
-                                color="secondary"
-                                aria-label={`Progress for ${currentFileName}`}
-                            />
-                        </Box>
-                    )}
-
-                    {stats.errorCount > 0 && (
-                        <Stack direction="row" alignItems="flex-start" spacing={2} sx={{ mt: 1, p: 1, bgcolor: '#fff0f0', borderRadius: 1, overflow: 'hidden' }}>
-                            <Typography variant="body2" color="error" sx={{ flexShrink: 0 }}>
-                                {stats.errorCount} {UI_STRINGS.FAILED_DOWNLOADS}
-                            </Typography>
-                            <Button size="small" variant="outlined" color="error" onClick={retryFailed} sx={{ flexShrink: 0 }}>
-                                {UI_STRINGS.RETRY_FAILED}
-                            </Button>
-                            <Box sx={{ flexGrow: 1, minHeight: 0, maxHeight: 80, overflowY: 'auto' }}>
-                                {stats.failedItems.map((item, idx) => {
-                                    const timeRange = (item.startTime && item.endTime)
-                                        ? ` (${formatDate(item.startTime)} - ${formatDate(item.endTime)})`
-                                        : '';
-                                    return (
-                                        <Typography key={idx} variant="caption" display="block" color="error">
-                                            {item.cameraName}{timeRange}: {item.error || UI_STRINGS.UNKNOWN_ERROR}
-                                        </Typography>
-                                    );
-                                })}
-                            </Box>
-                        </Stack>
-                    )}
-                </Stack>
-            </Stack>
+                    </Stack>
+                </Box>
+            </Box>
         </Box>
     );
 };

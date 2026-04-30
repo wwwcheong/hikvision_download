@@ -4,46 +4,49 @@ import { describe, it, expect, vi } from 'vitest';
 import DownloadQueueMonitor from './DownloadQueueMonitor';
 
 describe('DownloadQueueMonitor', () => {
-    const mockRetryFailed = vi.fn();
     const mockOnCancelAll = vi.fn();
 
     const baseState = {
         queue: [],
         addToQueue: vi.fn(),
-        retryFailed: mockRetryFailed,
+        clearCompleted: vi.fn(),
         isProcessing: false,
         currentProgress: 0,
         currentFileName: '',
         cancelAll: vi.fn()
     };
 
-    it('returns null when queue is empty', () => {
-        const { container } = render(
-            <DownloadQueueMonitor 
-                downloadState={{ ...baseState, queue: [] }} 
-                onCancelAll={mockOnCancelAll} 
+    it('renders when queue is empty', () => {
+        render(
+            <DownloadQueueMonitor
+                downloadState={{ ...baseState, queue: [] }}
+                onCancelAll={mockOnCancelAll}
             />
         );
-        expect(container).toBeEmptyDOMElement();
+        expect(screen.getByText('0/0')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Clear Done/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Cancel All/i })).toBeDisabled();
+        expect(screen.getByText('No active download')).toBeInTheDocument();
     });
 
-    it('renders progress bar when items are in queue', () => {
+    it('renders batch status with mixed queue', () => {
         const state = {
             ...baseState,
             queue: [
-                { status: 'pending', id: 1 },
-                { status: 'completed', id: 2 }
+                { status: 'completed', id: 1 },
+                { status: 'completed', id: 2 },
+                { status: 'error', id: 3, cameraName: 'Cam1', error: 'Network Error' },
+                { status: 'pending', id: 4 }
             ]
         };
         render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
-        
-        expect(screen.getByText(/Batch Status/i)).toBeInTheDocument();
-        expect(screen.getByText(/1 done/i)).toBeInTheDocument();
-        expect(screen.getByText(/1 remaining/i)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /Cancel All/i })).toBeInTheDocument();
+
+        expect(screen.getByText('2/4, 1 failed')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Clear Done/i })).toBeEnabled();
+        expect(screen.getByRole('button', { name: /Cancel All/i })).toBeDisabled();
     });
 
-    it('renders active download progress', () => {
+    it('renders active download progress with circular progress', () => {
         const state = {
             ...baseState,
             queue: [{ status: 'downloading', id: 1 }],
@@ -52,58 +55,50 @@ describe('DownloadQueueMonitor', () => {
             currentProgress: 45
         };
         render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
-        
-        expect(screen.getByText(/Downloading: video.mp4 \(45%\)/i)).toBeInTheDocument();
+
+        expect(screen.getByText('video.mp4')).toBeInTheDocument();
+        expect(screen.getByText('45%')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Cancel All/i })).toBeEnabled();
     });
 
-    it('renders error message and retry button when errors exist', () => {
+    it('renders 9/10, 1 failed batch status', () => {
         const state = {
             ...baseState,
-            queue: [{ 
-                status: 'error', 
-                id: 1, 
-                cameraName: 'Cam1', 
-                error: 'Network Error',
-                startTime: '20260205T100000',
-                endTime: '20260205T110000'
-            }]
+            queue: [
+                ...Array.from({ length: 9 }, (_, i) => ({ status: 'completed', id: i })),
+                { status: 'error', id: 9, cameraName: 'Cam1', error: 'Failed' }
+            ]
         };
+
         render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
-        
-        expect(screen.getByText(/1 failed downloads/i)).toBeInTheDocument();
-        // Check for formatted dates: 2026-02-05 10:00:00 and 2026-02-05 11:00:00
-        expect(screen.getByText(/Cam1 \(2026-02-05 10:00:00 - 2026-02-05 11:00:00\): Network Error/i)).toBeInTheDocument();
-        
-        const retryBtn = screen.getByRole('button', { name: /Retry Failed/i });
-        fireEvent.click(retryBtn);
-        expect(mockRetryFailed).toHaveBeenCalled();
+
+        expect(screen.getByText('9/10, 1 failed')).toBeInTheDocument();
     });
 
-    it('renders error message correctly when dates are missing', () => {
+    it('calls onCancelAll when Cancel All is clicked during processing', () => {
         const state = {
             ...baseState,
-            queue: [{ 
-                status: 'error', 
-                id: 1, 
-                cameraName: 'Cam1', 
-                error: 'Network Error'
-                // missing startTime/endTime
-            }]
+            queue: [{ status: 'downloading', id: 1 }],
+            isProcessing: true,
+            currentFileName: 'video.mp4',
+            currentProgress: 45
         };
         render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
-        
-        // Should show "Cam1: Network Error" without brackets
-        expect(screen.getByText(/Cam1: Network Error/i)).toBeInTheDocument();
-    });
 
-    it('calls onCancelAll when Cancel All is clicked', () => {
-        const state = {
-            ...baseState,
-            queue: [{ status: 'pending', id: 1 }]
-        };
-        render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
-        
         fireEvent.click(screen.getByRole('button', { name: /Cancel All/i }));
         expect(mockOnCancelAll).toHaveBeenCalled();
+    });
+
+    it('calls clearCompleted when Clear Done is clicked', () => {
+        const clearCompleted = vi.fn();
+        const state = {
+            ...baseState,
+            queue: [{ status: 'completed', id: 1 }],
+            clearCompleted
+        };
+        render(<DownloadQueueMonitor downloadState={state} onCancelAll={mockOnCancelAll} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Clear Done/i }));
+        expect(clearCompleted).toHaveBeenCalled();
     });
 });

@@ -61,7 +61,7 @@ const CircularProgress = ({ value = 0, size = 48, strokeWidth = 4 }) => {
 };
 
 const CancelButton = ({ onClick, disabled }) => {
-    const buttonSize = 36;
+    const buttonSize = 40;
 
     return (
         <Button
@@ -86,7 +86,7 @@ const CancelButton = ({ onClick, disabled }) => {
                 }
             }}
         >
-            <svg width="20" height="20" viewBox="0 0 24 24">
+            <svg width="18" height="18" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2"/>
                 <path d="M8 8L16 16M16 8L8 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
@@ -165,9 +165,9 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
                     onClick={clearCompleted}
                     disabled={stats.completed === 0}
                     sx={{
-                        minWidth: '36px',
-                        width: '36px',
-                        height: '36px',
+                        minWidth: '40px',
+                        width: '40px',
+                        height: '40px',
                         padding: 0,
                         borderColor: 'success.main',
                         color: 'success.main',
@@ -182,7 +182,7 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
                         }
                     }}
                 >
-                    <DustBloomIcon />
+                    <DustBloomIcon size={20} />
                 </Button>
 
                 {/* Batch status */}
@@ -229,6 +229,11 @@ const DownloadQueueMonitor = ({ downloadState, onCancelAll }) => {
                     size="small"
                     onClick={onCancelAll}
                     disabled={!isProcessing}
+                    sx={{
+                        height: '40px',
+                        minWidth: '40px',
+                        padding: '0 12px'
+                    }}
                 >
                     {UI_STRINGS.CANCEL_ALL}
                 </Button>

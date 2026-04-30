@@ -41,6 +41,10 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
     const abortControllerRef = useRef(null);
     const isMountedRef = useRef(true);
     const processingLockRef = useRef(false);
+    const cancelledRef = useRef(false);
+    const queueRef = useRef(queue);
+    const onDownloadSuccessRef = useRef(onDownloadSuccess);
+    const initializedRef = useRef(false);
 
     // Persistence
     useEffect(() => {
@@ -50,6 +54,19 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
             console.error('Failed to sync queue to localStorage', e);
         }
     }, [queue]);
+
+    // Keep refs in sync
+    useEffect(() => {
+        queueRef.current = queue;
+    }, [queue]);
+
+    useEffect(() => {
+        onDownloadSuccessRef.current = onDownloadSuccess;
+    }, [onDownloadSuccess]);
+
+    useEffect(() => {
+        initializedRef.current = true;
+    }, []);
 
     // Cleanup
     useEffect(() => {
@@ -64,7 +81,10 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
         let blobUrl = null;
         try {
             const response = await fetch(url, { signal });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+                const retryable = response.status >= 500 || response.status === 0;
+                throw Object.assign(new Error(`HTTP error! status: ${response.status}`), { retryable });
+            }
 
             const total = parseInt(response.headers.get('Content-Length') || '0', 10);
             let loaded = 0;
@@ -91,9 +111,10 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
             link.setAttribute('download', fileName);
             link.click();
             document.body.removeChild(link);
+            setTimeout(() => { if (blobUrl) window.URL.revokeObjectURL(blobUrl); }, 50);
             return true;
         } catch (error) {
-            if (error.name === 'AbortError' || attempt >= MAX_RETRIES) throw error;
+            if (error.name === 'AbortError' || error.retryable === false || attempt >= MAX_RETRIES) throw error;
             await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
             return downloadWithRetry(url, fileName, onProgress, signal, attempt + 1);
         } finally {
@@ -104,9 +125,9 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
     // Refined Processing Loop
     useEffect(() => {
         const processNext = async () => {
-            if (processingLockRef.current || !credentials) return;
-            
-            const nextItem = queue.find(item => item.status === 'pending');
+            if (processingLockRef.current || !credentials || !initializedRef.current) return;
+
+            const nextItem = queueRef.current.find(item => item.status === 'pending');
             if (!nextItem) {
                 setIsProcessing(false);
                 return;
@@ -151,7 +172,7 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
 
                 if (isMountedRef.current) {
                     setQueue(prev => prev.map(qi => qi.id === nextItem.id ? { ...qi, status: 'completed', progress: 100 } : qi));
-                    if (onDownloadSuccess) onDownloadSuccess(nextItem, credentials);
+                    if (onDownloadSuccessRef.current) onDownloadSuccessRef.current(nextItem, credentials);
                 }
             } catch (error) {
                 if (error.name !== 'AbortError' && isMountedRef.current) {
@@ -163,18 +184,18 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
                     setCurrentFileName('');
                     setCurrentProgress(0);
                     abortControllerRef.current = null;
-                    // Trigger the next loop
-                    poke();
+                    if (!cancelledRef.current) poke();
                 }
             }
         };
 
         processNext();
-    }, [credentials, processTrigger, onDownloadSuccess]); 
+    }, [credentials, processTrigger]); 
     // Note: queue removed from dependencies to avoid redundant re-runs. 
     // Trigger and completion handle the loop.
 
     const addToQueue = useCallback((items) => {
+        cancelledRef.current = false;
         setQueue(prev => [
             ...prev,
             ...items.map(item => ({
@@ -189,6 +210,7 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
     }, [poke]);
 
     const retryFailed = useCallback(() => {
+        cancelledRef.current = false;
         setQueue(prev => prev.map(item => 
             item.status === 'error' ? { ...item, status: 'pending', error: null, progress: 0 } : item
         ));
@@ -200,6 +222,7 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
     }, []);
 
     const cancelAll = useCallback(() => {
+        cancelledRef.current = true;
         setQueue([]);
         abortControllerRef.current?.abort();
         setIsProcessing(false);
@@ -211,12 +234,8 @@ const useDownloadQueue = (credentials, onDownloadSuccess) => {
     const cancelCurrent = useCallback(() => {
         setQueue(prev => prev.filter(item => item.status !== 'downloading'));
         abortControllerRef.current?.abort();
-        //setIsProcessing(false);
-        //setCurrentProgress(0);
-        //setCurrentFileName('');
-        processingLockRef.current = false;
-        poke();
-    }, [poke]);
+        // Lock release and poke are handled by the finally block in processNext
+    }, []);
 
     return {
         queue, addToQueue, retryFailed, clearCompleted, cancelAll, cancelCurrent,

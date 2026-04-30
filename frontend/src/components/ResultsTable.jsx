@@ -122,12 +122,12 @@ const ResultsTable = ({ results, totalCount, credentials, downloadState, isDownl
         return [0, '...', page - 1, page, page + 1, '...', totalPages - 1];
     }, [page, totalPages]);
 
-    const handleSelectAll = (event) => {
+const handleSelectAll = (event) => {
         const newSelected = new Set(selectedIds);
         if (event.target.checked) {
-            paginatedResults.forEach((r) => newSelected.add(r.playbackURI));
+            availableResults.forEach((r) => newSelected.add(r.playbackURI));
         } else {
-            paginatedResults.forEach((r) => newSelected.delete(r.playbackURI));
+            availableResults.forEach((r) => newSelected.delete(r.playbackURI));
         }
         setSelectedIds(newSelected);
     };
